@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: neurostage_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: neuro_admin
+      POSTGRES_PASSWORD: neuro_password
+      POSTGRES_DB: neurostage_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - neurostage_data:/var/lib/postgresql/data
+
+volumes:
+  neurostage_data:
