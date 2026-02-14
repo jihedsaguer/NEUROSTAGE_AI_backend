@@ -13,7 +13,7 @@ export class Role {
   @Column({ nullable: true })
   description: string;
 
-  @ManyToMany(() => Permission, (permission) => permission.roles, { cascade: true })
+  @ManyToMany(() => Permission, (permission) => permission.roles)
   @JoinTable({
     name: 'role_permissions',
     joinColumn: { name: 'role_id', referencedColumnName: 'id' },
