@@ -1,6 +1,6 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Role } from './entities/role.entity';
 import { Permission } from '../permissions/entities/permission.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -26,7 +26,7 @@ export class RolesService {
     let permissions: Permission[] = [];
     if (permissionIds && permissionIds.length > 0) {
       permissions = await this.permissionsRepository.find({
-        where: permissionIds.map((id) => ({ id } as any)),
+        where: { id: In(permissionIds) },
       });
       if (permissions.length !== permissionIds.length) {
         throw new BadRequestException('One or more permissions not found');
@@ -55,7 +55,7 @@ export class RolesService {
 
     if (permissionIds && permissionIds.length > 0) {
       const permissions = await this.permissionsRepository.find({
-        where: permissionIds.map((pid) => ({ id: pid } as any)),
+        where: { id: In(permissionIds) },
       });
       if (permissions.length !== permissionIds.length) {
         throw new BadRequestException('One or more permissions not found');
@@ -80,7 +80,7 @@ export class RolesService {
       throw new NotFoundException(`Role with id ${roleId} not found`);
     }
     const permissions = await this.permissionsRepository.find({
-      where: permissionIds.map((pid) => ({ id: pid } as any)),
+      where: { id: In(permissionIds) },
     });
     if (permissions.length !== permissionIds.length) {
       throw new BadRequestException('One or more permissions not found');
