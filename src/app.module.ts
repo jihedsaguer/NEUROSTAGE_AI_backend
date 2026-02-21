@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AssignmentsModule } from './modules/assignments/assignments.module';
     RolesModule,
     PermissionsModule,
     AssignmentsModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
