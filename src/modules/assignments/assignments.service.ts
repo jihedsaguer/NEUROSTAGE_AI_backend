@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Assignment } from './entities/assignment.entity';
 import { User } from '../users/entities/user.entity';
-import { NOTFOUND } from 'dns';
+import { AssignmentResponseDto } from './dto/assignment-response.dto';
+import { plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class AssignmentsService {
@@ -15,7 +16,7 @@ export class AssignmentsService {
     private userRepository: Repository<User>,
   ) {}
 
-  async assignEncadreurToStudent(encadreurId: string, studentId: string): Promise<Assignment> {
+  async assignEncadreurToStudent(encadreurId: string, studentId: string): Promise<AssignmentResponseDto> {
     const encadreur = await this.userRepository.findOne({ where: { id: encadreurId }, relations : ['roles']  });
     if (!encadreur) {
       throw new NotFoundException(`Encadreur with id ${encadreurId} not found`);
@@ -45,7 +46,8 @@ export class AssignmentsService {
       student,
     });
 
-    return await this.assignmentRepository.save(assignment);
+    return plainToInstance(AssignmentResponseDto, await this.assignmentRepository.save(assignment), { 
+      excludeExtraneousValues: true });
   }
 
   async getStudentsofEncadreur(encadreurId: string): Promise<User[]> {
