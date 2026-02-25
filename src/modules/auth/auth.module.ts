@@ -3,9 +3,12 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from '../modules/users/entities/user.entity';
-import { Role } from '../modules/roles/entities/role.entity';
+import { User } from '../users/entities/user.entity';
+import { Role } from '../roles/entities/role.entity';
 import { ConfigModule,ConfigService } from '@nestjs/config';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { RolesGuard } from './guards/roles.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
 
 @Module({
     imports: [TypeOrmModule.forFeature([User, Role]),
@@ -17,7 +20,6 @@ import { ConfigModule,ConfigService } from '@nestjs/config';
         if (!secret) {
           throw new Error('JWT_SECRET is not defined');
         }
-
         const expiresIn = configService.get<string>('JWT_EXPIRES_IN') ?? '1h';
 
         return {
@@ -29,7 +31,11 @@ import { ConfigModule,ConfigService } from '@nestjs/config';
       },
     })],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [AuthService,
+    JwtStrategy,
+    RolesGuard,
+    PermissionsGuard
+  ],
   exports: [JwtModule],
 
 })

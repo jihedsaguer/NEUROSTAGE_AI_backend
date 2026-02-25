@@ -1,19 +1,20 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../modules/users/entities/user.entity';
+import { User } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import { Role } from 'src/modules/roles/entities/role.entity';
 import { NotFoundException } from '@nestjs/common';
 import { UserResponseDto } from './dto/user-response.dto';
 import { plainToInstance } from 'class-transformer';
-import { SYSTEM_ROLES } from '../modules/roles/constants/roles.constants';
+import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 import { InternalServerErrorException } from '@nestjs/common';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from './types/jwt-payload.type';
 
 @Injectable()
 export class AuthService {
@@ -69,53 +70,56 @@ async register(registerDto: RegisterDto): Promise<UserResponseDto> {
     excludeExtraneousValues: true,
   });
 }
+async validateUser(email: string, password: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['roles', 'roles.permissions'],
+    });
 
-    async login(loginDto: LoginDto): Promise<AuthResponseDto> {
-  const { email, password } = loginDto;
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
-  const user = await this.userRepository.findOne({
-    where: { email },
-    relations: ['roles'],
-  });
+    if (!user.isActive) {
+      throw new UnauthorizedException('User is inactive');
+    }
 
-  if (!user) {
-    throw new UnauthorizedException('Invalid credentials');
+    const passwordMatches = await bcrypt.compare(password, user.password);
+    if (!passwordMatches) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return user;
   }
 
-  const isPasswordValid = await bcrypt.compare(
-    password,
-    user.password,
-  );
+  
+  async login(loginDto: LoginDto): Promise<AuthResponseDto> {
+    const { email, password } = loginDto;
+    const user = await this.validateUser(email, password);
 
-  if (!isPasswordValid) {
-    throw new UnauthorizedException('Invalid credentials');
-  }
+    // determine primary role and flatten permissions
+    const role = user.roles && user.roles.length > 0 ? user.roles[0].name : '';
+    const permissions = user.roles
+      .flatMap(r => r.permissions?.map(p => p.action) ?? []);
+    const uniquePermissions = Array.from(new Set(permissions));
 
-  if (!user.isActive) {
-    throw new UnauthorizedException('User account is inactive');
-  }
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role,
+      permissions: uniquePermissions,
+    };
 
-  // Build JWT payload
-  const payload = {
-    sub: user.id,
-    email: user.email,
-    roles: user.roles.map((role) => role.name),
-  };
+    const accessToken = this.jwtService.sign(payload);
 
-  const accessToken = await this.jwtService.signAsync(payload);
+    const userDto = plainToInstance(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
 
-  const userResponse = plainToInstance(UserResponseDto, user, {
-    excludeExtraneousValues: true,
-  });
-
-  return plainToInstance(
-    AuthResponseDto,
-    {
-      user: userResponse,
+    return plainToInstance(AuthResponseDto, {
+      user: userDto,
       accessToken,
-    },
-    { excludeExtraneousValues: true },
-  );
-}
+    }, { excludeExtraneousValues: true });
+  }
 
 }
