@@ -15,6 +15,8 @@ import { LoginDto } from './dto/login.dto';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './types/jwt-payload.type';
+import { EmailService } from '../email/email.service';
+import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -23,7 +25,9 @@ export class AuthService {
      private   readonly userRepository: Repository<User>,
     @InjectRepository(Role)
     private  readonly roleRepository: Repository<Role>,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => EmailService))
+    private readonly emailService: EmailService
     ) {}
 
 
@@ -50,6 +54,7 @@ async register(registerDto: RegisterDto): Promise<UserResponseDto> {
     );
   }
 
+  
   const user = this.userRepository.create({
     email,
     password: hashedPassword,
@@ -58,7 +63,7 @@ async register(registerDto: RegisterDto): Promise<UserResponseDto> {
     isActive: true,
     roles: [defaultRole],
   });
-
+await this.generateEmailVerificationToken(user);
   await this.userRepository.save(user);
 
   const savedUser = await this.userRepository.findOne({
@@ -102,6 +107,10 @@ async validateUser(email: string, password: string): Promise<User> {
     const permissions = user.roles
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
+     // check isEmailVerified before allowing login
+    if (!user.isEmailVerified) {
+      throw new UnauthorizedException('Email is not verified');
+    }
 
     const payload: JwtPayload = {
       sub: user.id,
@@ -111,6 +120,7 @@ async validateUser(email: string, password: string): Promise<User> {
     };
 
     const accessToken = this.jwtService.sign(payload);
+    const refreshToken = await this.setRefreshToken(user);
 
     const userDto = plainToInstance(UserResponseDto, user, {
       excludeExtraneousValues: true,
@@ -119,7 +129,114 @@ async validateUser(email: string, password: string): Promise<User> {
     return plainToInstance(AuthResponseDto, {
       user: userDto,
       accessToken,
+      refreshToken,
+    }, { excludeExtraneousValues: true });
+  }
+    
+
+  async generateEmailVerificationToken(user: User): Promise<string> {
+    const token = require('crypto').randomBytes(32).toString('hex');
+    user.emailVerificationToken = token;
+    user.emailVerificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.userRepository.save(user);
+
+    try {
+      await this.emailService.sendVerificationEmail(user, token);
+    } catch (err) {
+      console.error('Failed to send verification email', err);
+    }
+
+    return token;
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { emailVerificationToken: token },
+    });
+    if (!user) {
+      throw new NotFoundException('Invalid verification token');
+    }
+    if (user.emailVerificationTokenExpires && user.emailVerificationTokenExpires < new Date()) {
+      throw new NotFoundException('Verification token has expired');
+    }
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationTokenExpires = null;
+    await this.userRepository.save(user);
+  }
+
+ 
+  private async setRefreshToken(user: User): Promise<string> {
+    const token = require('crypto').randomBytes(64).toString('hex');
+    user.refreshToken = token;
+    user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await this.userRepository.save(user);
+    return token;
+  }
+
+
+  async refreshToken(oldRefreshToken: string): Promise<AuthResponseDto> {
+    const user = await this.userRepository.findOne({
+      where: { refreshToken: oldRefreshToken },
+      relations: ['roles', 'roles.permissions'],
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (user.refreshTokenExpires && user.refreshTokenExpires < new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+
+    // generate new access token+refresh token
+    const role = user.roles && user.roles.length > 0 ? user.roles[0].name : '';
+    const permissions = user.roles
+      .flatMap(r => r.permissions?.map(p => p.action) ?? []);
+    const uniquePermissions = Array.from(new Set(permissions));
+
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role,
+      permissions: uniquePermissions,
+    };
+
+    const accessToken = this.jwtService.sign(payload);
+    const refresh = await this.setRefreshToken(user);
+
+    const userDto = plainToInstance(UserResponseDto, user, {
+      excludeExtraneousValues: true,
+    });
+
+    return plainToInstance(AuthResponseDto, {
+      user: userDto,
+      accessToken,
+      refreshToken: refresh,
     }, { excludeExtraneousValues: true });
   }
 
+ 
+  async logout(userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (user) {
+      user.refreshToken = null;
+      user.refreshTokenExpires = null;
+      await this.userRepository.save(user);
+    }
+  }
+
+
+async resendVerificationEmail(email: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { email },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (user.isEmailVerified) {
+      throw new ConflictException('Email is already verified');
+    }
+    await this.setRefreshToken(user); // ensure refresh token persists
+    const token = await this.generateEmailVerificationToken(user);
+    return;
+  }
 }

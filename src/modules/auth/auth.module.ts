@@ -1,4 +1,3 @@
-import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
@@ -6,13 +5,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
 import { Role } from '../roles/entities/role.entity';
 import { ConfigModule,ConfigService } from '@nestjs/config';
+import { forwardRef, Module } from '@nestjs/common';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([User, Role]),
-   JwtModule.registerAsync({
+    imports: [
+      TypeOrmModule.forFeature([User, Role]),
+      // use forwardRef to break circular dependency with EmailModule
+      forwardRef(() => EmailModule),
+      JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
@@ -36,7 +40,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
     RolesGuard,
     PermissionsGuard
   ],
-  exports: [JwtModule],
+  exports: [JwtModule, AuthService],
 
 })
 export class AuthModule {}
