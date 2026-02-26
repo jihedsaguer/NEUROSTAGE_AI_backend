@@ -20,6 +20,22 @@ export class User {
 
   @Column({ default: true })
   isActive: boolean;
+   
+@Column({ default: false, nullable: true })
+  isEmailVerified: boolean;
+  
+ 
+  @Column({ type: 'varchar', nullable: true })
+  emailVerificationToken: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  emailVerificationTokenExpires: Date | null;
+
+  @Column({  type: 'varchar',nullable: true })
+  refreshToken: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  refreshTokenExpires: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

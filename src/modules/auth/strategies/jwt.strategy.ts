@@ -42,8 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
 
-    // mutate the user object so later code (guards/controllers) can access
-    // user.role and user.permissions directly.
+ 
     (user as any).role = role;
     (user as any).permissions = uniquePermissions;
 
