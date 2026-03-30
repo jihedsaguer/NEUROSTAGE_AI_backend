@@ -8,7 +8,7 @@ export class Role {
   id: string;
 
   @Column({ unique: true })
-  name: string; // e.g., 'super_admin', 'encadreur_pro'
+  name: string; 
 
   @Column({ nullable: true })
   description: string;

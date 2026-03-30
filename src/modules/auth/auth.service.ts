@@ -102,12 +102,12 @@ async validateUser(email: string, password: string): Promise<User> {
     const { email, password } = loginDto;
     const user = await this.validateUser(email, password);
 
-    // determine primary role and flatten permissions
     const role = user.roles && user.roles.length > 0 ? user.roles[0].name : '';
+
     const permissions = user.roles
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
-     // check isEmailVerified before allowing login
+
     if (!user.isEmailVerified) {
       throw new UnauthorizedException('Email is not verified');
     }

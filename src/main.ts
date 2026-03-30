@@ -6,7 +6,13 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
-  // global validation pipe to imporve data security 
+
+ app.enableCors({
+    origin: 'http://localhost:5173', // Replace with your Vite app's URL
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true, // Enable cookies and authentication
+  });
+  
   app.useGlobalPipes(
     new ValidationPipe({ 
       whitelist: true,
