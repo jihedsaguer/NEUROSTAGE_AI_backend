@@ -10,6 +10,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { AssignmentsModule } from './modules/assignments/assignments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EmailModule } from './modules/email/email.module';
+import { SubjectsModule } from './modules/subjects/subjects.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { EmailModule } from './modules/email/email.module';
     AssignmentsModule,
     AuthModule,
     EmailModule,
+    SubjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
