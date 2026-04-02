@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Role } from '../../roles/entities/role.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('users')
 export class User {
@@ -15,7 +16,9 @@ export class User {
   @Column()
   lastName: string;
 
+
   @Column({ nullable: true })
+  @Exclude()
   password: string;
 
   @Column({ default: true })
@@ -32,6 +35,7 @@ export class User {
   emailVerificationTokenExpires: Date | null;
 
   @Column({  type: 'varchar',nullable: true })
+    @Exclude()
   refreshToken: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
