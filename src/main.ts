@@ -1,24 +1,39 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { Transform } from 'class-transformer';
 import { ValidationPipe } from '@nestjs/common';
+import { AllExceptionsFilter } from './common/filters/exception.filter';
+import { LoggerService } from './common/logger/logger.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
 
- app.enableCors({
-    origin: 'http://localhost:5173', // Replace with your Vite app's URL
+  // Get logger and exception filter
+  const loggerService = app.get(LoggerService);
+  const exceptionFilter = new AllExceptionsFilter(loggerService);
+
+  // Enable CORS
+  app.enableCors({
+    origin: 'http://localhost:5173',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true, // Enable cookies and authentication
+    credentials: true,
   });
-  
-  app.useGlobalPipes(
-    new ValidationPipe({ 
-      whitelist: true,
-       forbidNonWhitelisted: true, 
-       transform: true }));
 
-  await app.listen(process.env.PORT ?? 3000);
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // Global exception filter
+  app.useGlobalFilters(exceptionFilter);
+
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  loggerService.log(`Application listening on port ${port}`);
 }
+
 bootstrap();
+

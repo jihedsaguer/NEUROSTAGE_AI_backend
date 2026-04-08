@@ -56,3 +56,4 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 RBAC_AND_ROADMAP.md
 src/database/seeds/seed.ts
+SUBJECTS_MODULE_FRONTEND_SPEC.md

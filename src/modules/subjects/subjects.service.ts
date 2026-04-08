@@ -76,6 +76,7 @@ if (!fullSubject) {
     if (userRole === SYSTEM_ROLES.STUDENT) {
       return await this.subjectRepository.find({
         where: { status: SubjectStatus.VALIDATED },
+        relations: ['createdBy'],
         order: { createdAt: 'DESC' },
       });
     }
@@ -85,11 +86,13 @@ if (!fullSubject) {
       userRole === SYSTEM_ROLES.ADMIN_FORMATION
     ) {
       return await this.subjectRepository.find({
+        relations: ['createdBy'],
         order: { createdAt: 'DESC' },
       });
     }
 
     return await this.subjectRepository.find({
+      relations: ['createdBy'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -97,6 +100,7 @@ if (!fullSubject) {
   async getSubjectById(id: string, user: User): Promise<Subject> {
     const subject = await this.subjectRepository.findOne({
       where: { id },
+      relations: ['createdBy'],
     });
 
     if (!subject) {
@@ -120,6 +124,7 @@ if (!fullSubject) {
   async getMySubjects(user: User): Promise<Subject[]> {
     return await this.subjectRepository.find({
       where: { createdBy: { id: user.id } },
+      relations: ['createdBy'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -127,6 +132,7 @@ if (!fullSubject) {
   async getPendingSubjects(): Promise<Subject[]> {
     return await this.subjectRepository.find({
       where: { status: SubjectStatus.PENDING },
+      relations: ['createdBy'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -138,6 +144,7 @@ if (!fullSubject) {
   ): Promise<Subject> {
     const subject = await this.subjectRepository.findOne({
       where: { id },
+      relations: ['createdBy'],
     });
 
     if (!subject) {
@@ -145,7 +152,7 @@ if (!fullSubject) {
     }
 
     const userRole = this.getUserRole(user);
-    const isOwner = subject.createdBy.id === user.id;
+    const isOwner = subject.createdBy?.id === user.id;
     const isAdmin =
       userRole === SYSTEM_ROLES.SUPER_ADMIN ||
       userRole === SYSTEM_ROLES.ADMIN_FORMATION;
@@ -191,6 +198,7 @@ if (!fullSubject) {
   ): Promise<Subject> {
     const subject = await this.subjectRepository.findOne({
       where: { id },
+      relations: ['createdBy'],
     });
 
     if (!subject) {

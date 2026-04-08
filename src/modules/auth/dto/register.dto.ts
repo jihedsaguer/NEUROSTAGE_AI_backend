@@ -1,7 +1,10 @@
-import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty } from 'class-validator';
+import { IsValidEmailDomain } from '../../../common/validators/email-domain.validator';
+import { IsStrongPassword } from '../../../common/validators/password-strength.validator';
 
 export class RegisterDto {
   @IsEmail()
+  @IsValidEmailDomain()
   email: string;
 
   @IsNotEmpty()
@@ -10,6 +13,6 @@ export class RegisterDto {
   @IsNotEmpty()
   lastName: string;
 
-  @MinLength(6)
+  @IsStrongPassword()
   password: string;
 }
