@@ -9,9 +9,10 @@ import {
   Param,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
-import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto } from './dto';
+import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto, QuerySubjectsFilterDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -40,13 +41,19 @@ export class SubjectsController {
   }
 
   @Get()
-  async getAllSubjects(@Request() req) {
-    return await this.subjectsService.getAllSubjects(req.user);
+  async getAllSubjects(
+    @Query() filter: QuerySubjectsFilterDto,
+    @Request() req,
+  ) {
+    return await this.subjectsService.getAllSubjects(req.user, filter);
   }
 
   @Get('my')
-  async getMySubjects(@Request() req) {
-    return await this.subjectsService.getMySubjects(req.user);
+  async getMySubjects(
+    @Query() filter: QuerySubjectsFilterDto,
+    @Request() req,
+  ) {
+    return await this.subjectsService.getMySubjects(req.user, filter);
   }
 
   @Get('pending')

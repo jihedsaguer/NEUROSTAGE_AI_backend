@@ -15,6 +15,7 @@ import { LoggerService } from './common/logger/logger.service';
 import { AuditService } from './common/audit/audit.service';
 import { AuditLog } from './common/audit/audit.entity';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { CandidaturesModule } from './modules/candidatures/candidatures.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
     AuthModule,
     EmailModule,
     SubjectsModule,
+    CandidaturesModule,
   ],
   controllers: [AppController],
   providers: [AppService, LoggerService, AuditService],

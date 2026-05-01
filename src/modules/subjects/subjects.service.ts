@@ -3,13 +3,15 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  NotAcceptableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Subject, SubjectStatus } from './entities/subject.entity';
-import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto,SubjectResponseDto } from './dto';
+import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto, SubjectResponseDto, QuerySubjectsFilterDto, SortField, SortOrder } from './dto';
 import { User } from '../users/entities/user.entity';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
+import { PaginatedResponseDto } from '../../common/dto';
 
 @Injectable()
 export class SubjectsService {
@@ -42,59 +44,115 @@ export class SubjectsService {
     createSubjectDto: CreateSubjectDto,
     user: User,
   ): Promise<SubjectResponseDto> {
-    const userRole = this.getUserRole(user);
-
-    let status = SubjectStatus.DRAFT;
-    if (userRole === SYSTEM_ROLES.STUDENT) {
-      status = SubjectStatus.PENDING;
-    } else if (userRole === SYSTEM_ROLES.ENCADRANT_PRO) {
-      status = SubjectStatus.DRAFT;
+    // Verify user is active
+    if (!user || !user.isActive) {
+      throw new ForbiddenException('User account is inactive');
     }
 
-    const subject = this.subjectRepository.create({
-    ...createSubjectDto,
-    status,
-    createdBy: user,
-  });
+    const userRole = this.getUserRole(user);
 
-  const savedSubject = await this.subjectRepository.save(subject);
-
-  const fullSubject = await this.subjectRepository.findOne({
+    // Determine status based on role (trust-based)
+    let status = SubjectStatus.DRAFT; // default
     
-    where: { id: savedSubject.id },
-    relations: ['createdBy'],
-  });
-if (!fullSubject) {
-  throw new Error('Subject not found after creation');
-}
-  return this.mapToResponse(fullSubject);
-}
-
-  async getAllSubjects(user: User): Promise<Subject[]> {
-    const userRole = this.getUserRole(user);
-
-    if (userRole === SYSTEM_ROLES.STUDENT) {
-      return await this.subjectRepository.find({
-        where: { status: SubjectStatus.VALIDATED },
-        relations: ['createdBy'],
-        order: { createdAt: 'DESC' },
-      });
-    }
-
     if (
       userRole === SYSTEM_ROLES.SUPER_ADMIN ||
       userRole === SYSTEM_ROLES.ADMIN_FORMATION
     ) {
-      return await this.subjectRepository.find({
-        relations: ['createdBy'],
-        order: { createdAt: 'DESC' },
+      // Auto-validate admin subjects (trust-based access)
+      status = SubjectStatus.VALIDATED;
+    } else if (userRole === SYSTEM_ROLES.STUDENT) {
+      // Student subjects require admin approval
+      status = SubjectStatus.PENDING;
+    }
+    // ENCADRANT_PRO subjects stay DRAFT (require validation)
+
+    const subject = this.subjectRepository.create({
+      ...createSubjectDto,
+      status,
+      createdBy: user,
+    });
+
+    const savedSubject = await this.subjectRepository.save(subject);
+
+    const fullSubject = await this.subjectRepository.findOne({
+      where: { id: savedSubject.id },
+      relations: ['createdBy'],
+    });
+
+    if (!fullSubject) {
+      throw new NotFoundException('Subject not found after creation');
+    }
+
+    return this.mapToResponse(fullSubject);
+  }
+
+  async getAllSubjects(
+    user: User,
+    filter: QuerySubjectsFilterDto = new QuerySubjectsFilterDto(),
+  ): Promise<PaginatedResponseDto<SubjectResponseDto>> {
+    const userRole = this.getUserRole(user);
+    const limit = Math.min(filter.limit || 20, 100); // Cap at 100
+    const offset = filter.offset || 0;
+
+    // Build query
+    let query = this.subjectRepository
+      .createQueryBuilder('subject')
+      .leftJoinAndSelect('subject.createdBy', 'createdBy');
+
+    // Apply role-based visibility
+    query = this.applyRoleBasedVisibility(query, userRole);
+
+    // Apply search filter
+    if (filter.search && filter.search.trim()) {
+      query.andWhere(
+        '(subject.title ILIKE :search OR subject.description ILIKE :search)',
+        { search: `%${filter.search}%` },
+      );
+    }
+
+    // Apply technologies filter
+    if (filter.technologies && filter.technologies.length > 0) {
+      query.andWhere('subject.technologies && :technologies', {
+        technologies: filter.technologies,
       });
     }
 
-    return await this.subjectRepository.find({
-      relations: ['createdBy'],
-      order: { createdAt: 'DESC' },
-    });
+    // Apply level filter
+    if (filter.level) {
+      query.andWhere('subject.level = :level', { level: filter.level });
+    }
+
+    // Apply status filter (only allow admins to filter by status)
+    if (
+      filter.status &&
+      filter.status.length > 0 &&
+      (userRole === SYSTEM_ROLES.SUPER_ADMIN ||
+        userRole === SYSTEM_ROLES.ADMIN_FORMATION)
+    ) {
+      query.andWhere('subject.status IN (:...statuses)', {
+        statuses: filter.status,
+      });
+    }
+
+    // Apply sorting
+    const sortOrder = filter.sortOrder === SortOrder.ASC ? 'ASC' : 'DESC';
+    if (filter.sortBy === SortField.TITLE) {
+      query.orderBy('subject.title', sortOrder as any);
+    } else {
+      query.orderBy('subject.createdAt', sortOrder as any);
+    }
+
+    // Get total count before pagination
+    const total = await query.getCount();
+
+    // Apply pagination
+    query.skip(offset).take(limit);
+
+    // Execute query
+    const subjects = await query.getMany();
+    const data = subjects.map((s) => this.mapToResponse(s));
+
+    return new PaginatedResponseDto(data, total, limit, offset);
   }
 
   async getSubjectById(id: string, user: User): Promise<Subject> {
@@ -121,12 +179,64 @@ if (!fullSubject) {
     return subject;
   }
 
-  async getMySubjects(user: User): Promise<Subject[]> {
-    return await this.subjectRepository.find({
-      where: { createdBy: { id: user.id } },
-      relations: ['createdBy'],
-      order: { createdAt: 'DESC' },
-    });
+  async getMySubjects(
+    user: User,
+    filter: QuerySubjectsFilterDto = new QuerySubjectsFilterDto(),
+  ): Promise<PaginatedResponseDto<SubjectResponseDto>> {
+    const limit = Math.min(filter.limit || 20, 100);
+    const offset = filter.offset || 0;
+
+    let query = this.subjectRepository
+      .createQueryBuilder('subject')
+      .leftJoinAndSelect('subject.createdBy', 'createdBy')
+      .where('subject.createdBy.id = :userId', { userId: user.id });
+
+    // Apply search filter
+    if (filter.search && filter.search.trim()) {
+      query.andWhere(
+        '(subject.title ILIKE :search OR subject.description ILIKE :search)',
+        { search: `%${filter.search}%` },
+      );
+    }
+
+    // Apply technologies filter
+    if (filter.technologies && filter.technologies.length > 0) {
+      query.andWhere('subject.technologies && :technologies', {
+        technologies: filter.technologies,
+      });
+    }
+
+    // Apply level filter
+    if (filter.level) {
+      query.andWhere('subject.level = :level', { level: filter.level });
+    }
+
+    // Apply status filter
+    if (filter.status && filter.status.length > 0) {
+      query.andWhere('subject.status IN (:...statuses)', {
+        statuses: filter.status,
+      });
+    }
+
+    // Apply sorting
+    const sortOrder = filter.sortOrder === SortOrder.ASC ? 'ASC' : 'DESC';
+    if (filter.sortBy === SortField.TITLE) {
+      query.orderBy('subject.title', sortOrder as any);
+    } else {
+      query.orderBy('subject.createdAt', sortOrder as any);
+    }
+
+    // Get total count
+    const total = await query.getCount();
+
+    // Apply pagination
+    query.skip(offset).take(limit);
+
+    // Execute query
+    const subjects = await query.getMany();
+    const data = subjects.map((s) => this.mapToResponse(s));
+
+    return new PaginatedResponseDto(data, total, limit, offset);
   }
 
   async getPendingSubjects(): Promise<Subject[]> {
@@ -222,5 +332,19 @@ if (!fullSubject) {
     return user?.roles && user.roles.length > 0
       ? user.roles[0].name
       : undefined;
+  }
+
+  private applyRoleBasedVisibility(query: any, userRole: string | undefined) {
+    // Students and academic tutors see only VALIDATED subjects
+    if (
+      userRole === SYSTEM_ROLES.STUDENT ||
+      userRole === SYSTEM_ROLES.ENCADRANT_ACADEMIQUE
+    ) {
+      query.andWhere('subject.status = :status', {
+        status: SubjectStatus.VALIDATED,
+      });
+    }
+    // Admins and ENCADRANT_PRO see all subjects (no additional filtering)
+    return query;
   }
 }

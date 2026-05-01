@@ -15,6 +15,7 @@ export class IsValidEmailDomainConstraint implements ValidatorConstraintInterfac
     'outlook.fr',
     'hotmail.com',
     'hotmail.fr',
+    'esprit.tn',
   ];
 
   validate(email: string): boolean {
