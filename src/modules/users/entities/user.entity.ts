@@ -1,7 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToMany,OneToOne,JoinColumn, JoinTable, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 import { Role } from '../../roles/entities/role.entity';
 import { Exclude } from 'class-transformer';
-
+import { StudentProfile } from '../../profiles/entities/profiles.entity';
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -57,4 +57,9 @@ export class User {
     inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
   })
   roles: Role[];
+
+
+  @OneToOne(() => StudentProfile, (profile) => profile.user, { cascade: true, eager: true })
+  @JoinColumn()
+  profile: StudentProfile;
 }
