@@ -12,11 +12,13 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EmailModule } from './modules/email/email.module';
 import { SubjectsModule } from './modules/subjects/subjects.module';
 import { LoggerService } from './common/logger/logger.service';
-import { AuditService } from './common/audit/audit.service';
-import { AuditLog } from './common/audit/audit.entity';
+import { AuditModule } from './common/audit/audit.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 import { CandidaturesModule } from './modules/candidatures/candidatures.module';
-
+import { ProfilesModule } from './modules/profiles/profiles.module';
+import { StagesModule } from './modules/stages/stages.module';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,7 +29,7 @@ import { CandidaturesModule } from './modules/candidatures/candidatures.module';
       useFactory: (configService: ConfigService) =>
         getDatabaseConfig(configService),
     }),
-    TypeOrmModule.forFeature([AuditLog]),
+    AuditModule,
     UsersModule,
     RolesModule,
     PermissionsModule,
@@ -36,9 +38,16 @@ import { CandidaturesModule } from './modules/candidatures/candidatures.module';
     EmailModule,
     SubjectsModule,
     CandidaturesModule,
+    ProfilesModule,
+    StagesModule,
   ],
   controllers: [AppController],
-  providers: [AppService, LoggerService, AuditService],
+  providers: [AppService, LoggerService,
+    {
+    provide: APP_INTERCEPTOR,
+    useClass: AuditInterceptor,
+  },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

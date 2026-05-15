@@ -3,11 +3,13 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  OneToMany,
   CreateDateColumn,
   UpdateDateColumn,
   Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { Candidature } from '../../candidatures/entities/candidature.entity';
 
 export enum SubjectStatus {
   DRAFT = 'DRAFT',
@@ -48,11 +50,15 @@ export class Subject {
   @ManyToOne(() => User)
   createdBy: User;
 
+  @OneToMany(() => Candidature, (candidature) => candidature.subject, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
+  candidatures: Candidature[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  
 }
