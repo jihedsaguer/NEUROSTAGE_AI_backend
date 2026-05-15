@@ -1,9 +1,11 @@
-import { IsNotEmpty, MinLength } from "class-validator";
+import { IsNotEmpty, IsEmail } from 'class-validator';
+import { IsValidEmailDomain } from '../../../common/validators/email-domain.validator';
 
 export class LoginDto {
-    @IsNotEmpty()
-    email: string;
+  @IsEmail()
+  @IsValidEmailDomain()
+  email: string;
 
-    @MinLength(6)
-    password: string;
+  @IsNotEmpty()
+  password: string;
 }
