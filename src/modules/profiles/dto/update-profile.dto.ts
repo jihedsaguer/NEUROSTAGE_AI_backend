@@ -5,7 +5,6 @@ import {
   IsNumber,
   Min,
   Max,
-  IsEnum,
 } from 'class-validator';
 
 export class UpdateProfileDto {
@@ -31,12 +30,4 @@ export class UpdateProfileDto {
   @IsString({ each: true })
   @IsOptional()
   skills?: string[];
-
-  @IsString()
-  @IsOptional()
-  cinLast3Digits?: string;
-
-  @IsEnum(['PENDING', 'VERIFIED', 'REJECTED'])
-  @IsOptional()
-  cinStatus?: string;
 }

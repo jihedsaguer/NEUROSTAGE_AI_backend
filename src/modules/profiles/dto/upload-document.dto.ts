@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsNumber, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsEnum } from 'class-validator';
 
 export enum DocumentType {
   CV = 'CV',
@@ -12,24 +12,4 @@ export class UploadDocumentDto {
   @IsEnum(DocumentType)
   @IsNotEmpty()
   type: string;
-
-  @IsString()
-  @IsNotEmpty()
-  fileName: string;
-
-  @IsString()
-  @IsNotEmpty()
-  fileUrl: string;
-
-  @IsString()
-  @IsNotEmpty()
-  fileType: string;
-
-  @IsNumber()
-  @IsNotEmpty()
-  size: number;
-
-  @IsString()
-  @IsOptional()
-  hash?: string;
 }

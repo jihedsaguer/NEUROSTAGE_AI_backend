@@ -270,6 +270,28 @@ export class StagesService {
     return this.mapToResponse(await this.loadFullStage(saved.id));
   }
 
+  // ─── Complete stage (admin only) ─────────────────────────────────────────────
+
+  async completeStage(stageId: string): Promise<StageResponseDto> {
+    const stage = await this.loadFullStage(stageId);
+
+    if (stage.status === StageStatus.CANCELLED) {
+      throw new BadRequestException('Cannot complete a cancelled stage');
+    }
+    if (stage.status === StageStatus.COMPLETED) {
+      throw new BadRequestException('Stage is already completed');
+    }
+    if (stage.status === StageStatus.PENDING_ACAD) {
+      throw new BadRequestException(
+        'Cannot complete a stage that is still pending academic supervisor assignment',
+      );
+    }
+
+    stage.status = StageStatus.COMPLETED;
+    const saved = await this.stageRepository.save(stage);
+    return this.mapToResponse(await this.loadFullStage(saved.id));
+  }
+
   // ─── Cancel stage (admin only) ───────────────────────────────────────────────
 
   async cancelStage(stageId: string): Promise<StageResponseDto> {
@@ -290,7 +312,10 @@ export class StagesService {
   // ─── Get all stages (admin) ──────────────────────────────────────────────────
 
   async getAllStages(): Promise<StageResponseDto[]> {
-    const stages = await this.stageRepository.find({ order: { createdAt: 'DESC' } });
+    const stages = await this.stageRepository.find({
+      relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad'],
+      order: { createdAt: 'DESC' },
+    });
     return stages.map((s) => this.mapToResponse(s));
   }
 
@@ -319,6 +344,7 @@ export class StagesService {
   async getMyStage(user: User): Promise<StageResponseDto> {
     const stage = await this.stageRepository.findOne({
       where: { studentId: user.id },
+      relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad'],
       order: { createdAt: 'DESC' },
     });
     if (!stage) throw new NotFoundException('No stage found for this student');
@@ -328,6 +354,7 @@ export class StagesService {
   async getMyStagesAsEncadrantPro(user: User): Promise<StageResponseDto[]> {
     const stages = await this.stageRepository.find({
       where: { encadrantProId: user.id },
+      relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad'],
       order: { createdAt: 'DESC' },
     });
     return stages.map((s) => this.mapToResponse(s));
@@ -336,6 +363,7 @@ export class StagesService {
   async getMyStagesAsEncadrantAcad(user: User): Promise<StageResponseDto[]> {
     const stages = await this.stageRepository.find({
       where: { encadrantAcadId: user.id },
+      relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad'],
       order: { createdAt: 'DESC' },
     });
     return stages.map((s) => this.mapToResponse(s));
@@ -344,7 +372,10 @@ export class StagesService {
   // ─── Private helpers ─────────────────────────────────────────────────────────
 
   private async loadFullStage(stageId: string): Promise<Stage> {
-    const stage = await this.stageRepository.findOne({ where: { id: stageId } });
+    const stage = await this.stageRepository.findOne({
+      where: { id: stageId },
+      relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad', 'candidature'],
+    });
     if (!stage) throw new NotFoundException(`Stage ${stageId} not found`);
     return stage;
   }

@@ -19,7 +19,7 @@ export class IsValidEmailDomainConstraint implements ValidatorConstraintInterfac
   ];
 
   validate(email: string): boolean {
-    if (!email || typeof email !== 'string') {
+    if (!email || typeof email !== 'string') { 
       return false;
     }
 
