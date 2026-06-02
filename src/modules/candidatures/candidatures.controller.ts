@@ -2,14 +2,12 @@ import {
   Controller,
   Get,
   Post,
-  Put,
   Delete,
   Patch,
   Body,
   Param,
   UseGuards,
   Request,
-  Query,
 } from '@nestjs/common';
 import { CandidaturesService } from './candidatures.service';
 import { CreateCandidatureDto, UpdateCandidatureDto } from './dto';
@@ -17,7 +15,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
-import { ForbiddenException } from '@nestjs/common/exceptions/forbidden.exception';
 @Controller('candidatures')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CandidaturesController {
@@ -67,16 +64,9 @@ async cancelCandidature(
     return { message: 'Candidature cancelled successfully' };
 }
 @Get()
-@UseGuards(JwtAuthGuard)
-async getAllCandidatures(@Request() req) {
-const isAdmin = req.user.roles.some(role => 
-        role.name === SYSTEM_ROLES.ADMIN_FORMATION || 
-        role.name === SYSTEM_ROLES.SUPER_ADMIN
-    );
-    if(!isAdmin) {
-        throw new ForbiddenException('You do not have access to this resource');
-    }
-    return await this.candidaturesService.GetAllCandidatures();
+@Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN)
+async getAllCandidatures() {
+  return await this.candidaturesService.getAllCandidatures();
 }
 }
   

@@ -21,14 +21,20 @@ export class RolesGuard implements CanActivate {
 
     const { user } = context.switchToHttp().getRequest();
 
-    // some codepaths (e.g. direct DB calls) may not have user.role set, so
-    // fall back to first element of roles array if available.
-    const userRole =
-      user?.role || (user?.roles && user.roles.length > 0
-        ? user.roles[0].name
-        : undefined);
+    if (!user) {
+      throw new ForbiddenException('Insufficient role');
+    }
 
-    if (!user || !userRole || !requiredRoles.includes(userRole)) {
+    // user.roles is the full Role[] array loaded by JwtStrategy.validate()
+    const userRoleNames: string[] = (user.roles ?? []).map(
+      (r: { name: string }) => r.name,
+    );
+
+    const hasRole = requiredRoles.some((required) =>
+      userRoleNames.includes(required),
+    );
+
+    if (!hasRole) {
       throw new ForbiddenException('Insufficient role');
     }
 

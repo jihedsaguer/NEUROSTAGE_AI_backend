@@ -37,13 +37,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
-    const role = user.roles && user.roles.length > 0 ? user.roles[0].name : '';
     const permissions = user.roles
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
 
- 
-    (user as any).role = role;
+    // Attach derived fields so controllers and the future WebSocket gateway
+    // can read them without an extra DB query.
+    (user as any).roles = user.roles; // already loaded with relations
     (user as any).permissions = uniquePermissions;
 
     return user as any;

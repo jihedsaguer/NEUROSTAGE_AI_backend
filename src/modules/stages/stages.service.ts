@@ -4,6 +4,9 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +15,7 @@ import { Candidature, CandidatureStatus } from '../candidatures/entities/candida
 import { User } from '../users/entities/user.entity';
 import { Subject } from '../subjects/entities/subject.entity';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
+import { ChatService } from '../chat/chat.service';
 import {
   CreateStageDto,
   UpdateStageDto,
@@ -22,6 +26,8 @@ import {
 
 @Injectable()
 export class StagesService {
+  private readonly logger = new Logger(StagesService.name);
+
   constructor(
     @InjectRepository(Stage)
     private readonly stageRepository: Repository<Stage>,
@@ -31,6 +37,8 @@ export class StagesService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Subject)
     private readonly subjectRepository: Repository<Subject>,
+    @Inject(forwardRef(() => ChatService))
+    private readonly chatService: ChatService,
   ) {}
 
   // ─── Create stage from accepted candidature ──────────────────────────────────
@@ -152,7 +160,15 @@ export class StagesService {
     });
 
     const saved = await this.stageRepository.save(stage);
-    return this.mapToResponse(await this.loadFullStage(saved.id));
+
+    // Auto-create the chat room for this stage (non-blocking — failure must not
+    // roll back the stage creation itself).
+    const fullSaved = await this.loadFullStage(saved.id);
+    this.chatService.createRoomForStage(fullSaved).catch((err) =>
+      this.logger.error(`Failed to create chat room for stage ${saved.id}`, err),
+    );
+
+    return this.mapToResponse(fullSaved);
   }
 
   /**
@@ -212,10 +228,18 @@ export class StagesService {
     });
 
     const saved = await this.stageRepository.save(stage);
-    console.log(
+    this.logger.log(
       `[StagesService] Auto-created stage ${saved.id} for candidature ${candidatureId}`,
     );
-    return this.mapToResponse(await this.loadFullStage(saved.id));
+
+    const fullSaved = await this.loadFullStage(saved.id);
+
+    // Auto-create the chat room (non-blocking)
+    this.chatService.createRoomForStage(fullSaved).catch((err) =>
+      this.logger.error(`Failed to create chat room for stage ${saved.id}`, err),
+    );
+
+    return this.mapToResponse(fullSaved);
   }
 
   // ─── Assign / reassign encadrant pro (admin only) ────────────────────────────
@@ -253,6 +277,15 @@ export class StagesService {
     }
 
     const saved = await this.stageRepository.save(stage);
+
+    // Add the newly assigned academic supervisor to the stage chat room (non-blocking)
+    this.chatService.addEncadrantAcadToStageRoom(stageId, encadrantAcad.id).catch((err) =>
+      this.logger.error(
+        `Failed to add encadrantAcad ${encadrantAcad.id} to chat room for stage ${stageId}`,
+        err,
+      ),
+    );
+
     return this.mapToResponse(await this.loadFullStage(saved.id));
   }
 
@@ -342,10 +375,10 @@ export class StagesService {
   // ─── Role-scoped list endpoints ──────────────────────────────────────────────
 
   async getMyStage(user: User): Promise<StageResponseDto> {
+    // A student has at most one active stage at a time (enforced by UNIQUE candidatureId).
     const stage = await this.stageRepository.findOne({
       where: { studentId: user.id },
       relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad'],
-      order: { createdAt: 'DESC' },
     });
     if (!stage) throw new NotFoundException('No stage found for this student');
     return this.mapToResponse(stage);

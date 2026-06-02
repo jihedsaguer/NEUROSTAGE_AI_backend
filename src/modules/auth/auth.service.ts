@@ -102,8 +102,6 @@ async validateUser(email: string, password: string): Promise<User> {
     const { email, password } = loginDto;
     const user = await this.validateUser(email, password);
 
-    const role = user.roles && user.roles.length > 0 ? user.roles[0].name : '';
-
     const permissions = user.roles
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
@@ -115,7 +113,7 @@ async validateUser(email: string, password: string): Promise<User> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role,
+      roles: user.roles.map(r => r.name),
       permissions: uniquePermissions,
     };
 
@@ -188,7 +186,6 @@ async validateUser(email: string, password: string): Promise<User> {
     }
 
     // generate new access token+refresh token
-    const role = user.roles && user.roles.length > 0 ? user.roles[0].name : '';
     const permissions = user.roles
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
@@ -196,7 +193,7 @@ async validateUser(email: string, password: string): Promise<User> {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      role,
+      roles: user.roles.map(r => r.name),
       permissions: uniquePermissions,
     };
 

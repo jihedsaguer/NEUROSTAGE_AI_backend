@@ -112,11 +112,9 @@ export class ProfilesService {
 
     await this.refreshProfileCompletion(profile);
 
-    const updatedProfile = await this.profileRepository.findOne({
-      where: { id: profile.id },
-    });
-
-    return this.mapProfileToResponse(updatedProfile!);
+    // refreshProfileCompletion already saves the profile — return it directly
+    // without an extra DB round-trip.
+    return this.mapProfileToResponse(profile);
   }
 
   /**
@@ -145,23 +143,12 @@ export class ProfilesService {
     }
 
     if (type === 'CV') {
-      const hasCv = await this.hasCvDocument(profile.id);
       const existingCvs = await this.documentRepository.find({
         where: { profileId: profile.id, type: 'CV' },
       });
 
-      if (hasCv && existingCvs.length === 0) {
-        this.logger.warn(
-          `CV count indicates documents exist for profile ${profile.id} but no CV rows were found`,
-        );
-      }
-
       if (existingCvs.length > 0) {
-        await Promise.all(
-          existingCvs.map((doc) =>
-            Promise.resolve(this.storageService.deleteFile(doc.fileUrl)),
-          ),
-        );
+        existingCvs.forEach((doc) => this.storageService.deleteFile(doc.fileUrl));
         await this.documentRepository.remove(existingCvs);
       }
     }
@@ -382,6 +369,8 @@ export class ProfilesService {
       completionPercentage: profile.completionPercentage,
       isComplete: profile.isComplete,
       cinStatus: profile.cinStatus,
+      cinLast3Digits: profile.cinLast3Digits ?? undefined,
+      isAiProcessed: profile.isAiProcessed,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
     };

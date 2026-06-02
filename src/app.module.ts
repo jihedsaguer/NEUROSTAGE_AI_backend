@@ -18,6 +18,7 @@ import { CandidaturesModule } from './modules/candidatures/candidatures.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { StagesModule } from './modules/stages/stages.module';
 import { JalonsModule } from './modules/jalons/jalons.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 @Module({
@@ -42,6 +43,7 @@ import { APP_INTERCEPTOR } from '@nestjs/core';
     ProfilesModule,
     StagesModule,
     JalonsModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService, LoggerService,
