@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,19 +13,52 @@ import { User } from '../users/entities/user.entity';
 import {
   CreateProfileDto,
   UpdateProfileDto,
-  UploadDocumentDto,
   ProfileResponseDto,
   DocumentResponseDto,
 } from './dto';
 import { PaginatedResponseDto } from 'src/common/dto';
+import { StorageService } from './storage/storage.service';
+
+const DOCUMENT_TYPE_RULES: Record<
+  string,
+  { allowedMimes: string[]; maxBytes: number }
+> = {
+  CV: {
+    allowedMimes: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    maxBytes: 10 * 1024 * 1024,
+  },
+  TRANSCRIPT: {
+    allowedMimes: ['application/pdf', 'image/jpeg', 'image/png'],
+    maxBytes: 10 * 1024 * 1024,
+  },
+  CERTIFICATE: {
+    allowedMimes: ['application/pdf', 'image/jpeg', 'image/png'],
+    maxBytes: 10 * 1024 * 1024,
+  },
+  CIN: {
+    allowedMimes: ['image/jpeg', 'image/png'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  OTHER: {
+    allowedMimes: ['application/pdf', 'image/jpeg', 'image/png'],
+    maxBytes: 10 * 1024 * 1024,
+  },
+};
 
 @Injectable()
 export class ProfilesService {
+  private readonly logger = new Logger(ProfilesService.name);
+
   constructor(
     @InjectRepository(StudentProfile)
     private readonly profileRepository: Repository<StudentProfile>,
     @InjectRepository(StudentDocument)
     private readonly documentRepository: Repository<StudentDocument>,
+    private readonly storageService: StorageService,
   ) {}
 
   /**
@@ -33,25 +66,7 @@ export class ProfilesService {
    * This is called when user first accesses profiles
    */
   async getOrCreateProfile(user: User): Promise<ProfileResponseDto> {
-    // Check if profile exists
-    let profile = await this.profileRepository.findOne({
-      where: { userId: user.id },
-    });
-
-    // If no profile, create one
-    if (!profile) {
-      profile = this.profileRepository.create({
-        userId: user.id,
-        skills: [],
-        completionPercentage: 0,
-        isComplete: false,
-        cinStatus: 'PENDING',
-        isAiProcessed: false,
-      } as Partial<StudentProfile>);
-
-      profile = await this.profileRepository.save(profile);
-    }
-
+    const profile = await this.ensureProfileForUser(user.id);
     return this.mapProfileToResponse(profile);
   }
 
@@ -75,17 +90,10 @@ export class ProfilesService {
    */
   async updateProfile(
     userId: string,
-    updateProfileDto: UpdateProfileDto,
+    updateProfileDto: UpdateProfileDto | CreateProfileDto,
   ): Promise<ProfileResponseDto> {
-    const profile = await this.profileRepository.findOne({
-      where: { userId },
-    });
+    const profile = await this.ensureProfileForUser(userId);
 
-    if (!profile) {
-      throw new NotFoundException('Profile not found for this user');
-    }
-
-    // Update fields if provided
     if (updateProfileDto.phone !== undefined) {
       profile.phone = updateProfileDto.phone;
     }
@@ -101,72 +109,82 @@ export class ProfilesService {
     if (updateProfileDto.skills !== undefined) {
       profile.skills = updateProfileDto.skills;
     }
-    if (updateProfileDto.cinLast3Digits !== undefined) {
-      profile.cinLast3Digits = updateProfileDto.cinLast3Digits;
-    }
-    if (updateProfileDto.cinStatus !== undefined) {
-      profile.cinStatus = updateProfileDto.cinStatus;
-    }
 
-    // Recalculate completion percentage (check if CV exists)
-    const hasCv = await this.hasCvDocument(profile.id);
-    const completionPercentage = this.calculateCompletionPercentage(
-      profile,
-      hasCv,
-    );
-    profile.completionPercentage = completionPercentage;
-    profile.isComplete = completionPercentage > 80;
+    await this.refreshProfileCompletion(profile);
 
-    const updatedProfile = await this.profileRepository.save(profile);
+    const updatedProfile = await this.profileRepository.findOne({
+      where: { id: profile.id },
+    });
 
-    return this.mapProfileToResponse(updatedProfile);
+    return this.mapProfileToResponse(updatedProfile!);
   }
 
   /**
-   * Upload document metadata
-   * (In real implementation, this would handle actual file uploads)
+   * Upload a document file for the current user
    */
   async uploadDocument(
     userId: string,
-    uploadDocumentDto: UploadDocumentDto,
+    type: string,
+    file: Express.Multer.File,
   ): Promise<DocumentResponseDto> {
-    // Get user's profile
-    const profile = await this.profileRepository.findOne({
-      where: { userId },
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Profile not found for this user');
-    }
-
-    // Validate document type
-    const validTypes = ['CV', 'TRANSCRIPT', 'CERTIFICATE', 'CIN', 'OTHER'];
-    if (!validTypes.includes(uploadDocumentDto.type)) {
+    const validTypes = Object.keys(DOCUMENT_TYPE_RULES);
+    if (!validTypes.includes(type)) {
+      await this.cleanupUploadedFile(file);
       throw new BadRequestException(
         `Invalid document type. Allowed: ${validTypes.join(', ')}`,
       );
     }
 
-    // Create document
+    const profile = await this.ensureProfileForUser(userId);
+
+    try {
+      this.validateDocumentFile(type, file);
+    } catch (err) {
+      await this.cleanupUploadedFile(file);
+      throw err;
+    }
+
+    if (type === 'CV') {
+      const hasCv = await this.hasCvDocument(profile.id);
+      const existingCvs = await this.documentRepository.find({
+        where: { profileId: profile.id, type: 'CV' },
+      });
+
+      if (hasCv && existingCvs.length === 0) {
+        this.logger.warn(
+          `CV count indicates documents exist for profile ${profile.id} but no CV rows were found`,
+        );
+      }
+
+      if (existingCvs.length > 0) {
+        await Promise.all(
+          existingCvs.map((doc) =>
+            Promise.resolve(this.storageService.deleteFile(doc.fileUrl)),
+          ),
+        );
+        await this.documentRepository.remove(existingCvs);
+      }
+    }
+
+    const hash = await this.storageService.computeFileHash(file.path);
+    const metadata = this.storageService.getFileMetadata(userId, file, hash);
+
     const document = this.documentRepository.create({
-      ...uploadDocumentDto,
+      type,
+      fileName: metadata.fileName,
+      fileUrl: metadata.fileUrl,
+      fileType: metadata.fileType,
+      size: metadata.size,
+      hash: metadata.hash,
       profile,
       profileId: profile.id,
-      scanOk: false, // Default to unscanned
+      scanOk: false,
     });
 
     const savedDocument = await this.documentRepository.save(document);
 
-    // If CV is uploaded, recalculate completion percentage
-    if (uploadDocumentDto.type === 'CV') {
-      const hasCv = await this.hasCvDocument(profile.id);
-      const completionPercentage = this.calculateCompletionPercentage(
-        profile,
-        hasCv,
-      );
-      profile.completionPercentage = completionPercentage;
-      profile.isComplete = completionPercentage > 80;
-      await this.profileRepository.save(profile);
+    if (type === 'CV') {
+      await this.refreshProfileCompletion(profile);
     }
 
     return this.mapDocumentToResponse(savedDocument);
@@ -189,14 +207,12 @@ export class ProfilesService {
       throw new NotFoundException('Profile not found for this user');
     }
 
-    // Build query
     let query = this.documentRepository
       .createQueryBuilder('doc')
       .where('doc.profileId = :profileId', { profileId: profile.id });
 
-    // Filter by type if provided
     if (type) {
-      const validTypes = ['CV', 'TRANSCRIPT', 'CERTIFICATE', 'CIN', 'OTHER'];
+      const validTypes = Object.keys(DOCUMENT_TYPE_RULES);
       if (!validTypes.includes(type)) {
         throw new BadRequestException(
           `Invalid document type. Allowed: ${validTypes.join(', ')}`,
@@ -205,7 +221,6 @@ export class ProfilesService {
       query = query.andWhere('doc.type = :type', { type });
     }
 
-    // Apply pagination
     query = query
       .orderBy('doc.createdAt', 'DESC')
       .take(Math.min(limit, 100))
@@ -235,19 +250,91 @@ export class ProfilesService {
       throw new NotFoundException('Document not found');
     }
 
-    // Verify ownership
     if (document.profile.userId !== userId) {
       throw new ForbiddenException(
         'You do not have permission to delete this document',
       );
     }
 
+    const wasCv = document.type === 'CV';
+    const profileId = document.profile.id;
+
+    this.storageService.deleteFile(document.fileUrl);
     await this.documentRepository.remove(document);
+
+    if (wasCv) {
+      const profile = await this.profileRepository.findOne({
+        where: { id: profileId },
+      });
+      if (profile) {
+        await this.refreshProfileCompletion(profile);
+      }
+    }
   }
 
-  /**
-   * Check if profile has CV document
-   */
+  private async ensureProfileForUser(userId: string): Promise<StudentProfile> {
+    let profile = await this.profileRepository.findOne({
+      where: { userId },
+    });
+
+    if (!profile) {
+      profile = this.profileRepository.create({
+        userId,
+        skills: [],
+        completionPercentage: 0,
+        isComplete: false,
+        cinStatus: 'PENDING',
+        isAiProcessed: false,
+      } as Partial<StudentProfile>);
+
+      profile = await this.profileRepository.save(profile);
+    }
+
+    return profile;
+  }
+
+  private validateDocumentFile(
+    type: string,
+    file: Express.Multer.File,
+  ): void {
+    const rules = DOCUMENT_TYPE_RULES[type];
+    if (!rules) {
+      throw new BadRequestException(`Invalid document type: ${type}`);
+    }
+
+    if (!rules.allowedMimes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Invalid file type for document type ${type}. Allowed MIME types: ${rules.allowedMimes.join(', ')}`,
+      );
+    }
+
+    if (file.size > rules.maxBytes) {
+      const maxMb = rules.maxBytes / (1024 * 1024);
+      throw new BadRequestException(
+        `File exceeds maximum size of ${maxMb}MB for document type ${type}`,
+      );
+    }
+  }
+
+  private async cleanupUploadedFile(file: Express.Multer.File): Promise<void> {
+    if (file?.path) {
+      this.storageService.deletePhysicalPath(file.path);
+    }
+  }
+
+  private async refreshProfileCompletion(
+    profile: StudentProfile,
+  ): Promise<void> {
+    const hasCv = await this.hasCvDocument(profile.id);
+    const completionPercentage = this.calculateCompletionPercentage(
+      profile,
+      hasCv,
+    );
+    profile.completionPercentage = completionPercentage;
+    profile.isComplete = completionPercentage > 80;
+    await this.profileRepository.save(profile);
+  }
+
   private async hasCvDocument(profileId: string): Promise<boolean> {
     const cvCount = await this.documentRepository.count({
       where: { profileId, type: 'CV' },
@@ -255,23 +342,14 @@ export class ProfilesService {
     return cvCount > 0;
   }
 
-  /**
-   * Calculate completion percentage based on profile fields
-   * CV uploaded: +40%
-   * Phone: +20%
-   * University: +15%
-   * Level: +15%
-   * Graduation Year: +10%
-   */
   private calculateCompletionPercentage(
     profile: StudentProfile,
     hasCv?: boolean,
   ): number {
     let percentage = 0;
 
-    // Add CV percentage if provided
     if (hasCv) {
-      percentage += 40; // CV uploaded
+      percentage += 40;
     }
 
     if (profile.phone) {
@@ -290,12 +368,9 @@ export class ProfilesService {
       percentage += 10;
     }
 
-    return Math.min(percentage, 100); // Cap at 100%
+    return Math.min(percentage, 100);
   }
 
-  /**
-   * Map profile entity to response DTO (exclude sensitive data)
-   */
   private mapProfileToResponse(profile: StudentProfile): ProfileResponseDto {
     return {
       id: profile.id,
@@ -309,14 +384,12 @@ export class ProfilesService {
       cinStatus: profile.cinStatus,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
-      // NEVER expose cinHash or isAiProcessed in response
     };
   }
 
-  /**
-   * Map document entity to response DTO (exclude sensitive data)
-   */
-  private mapDocumentToResponse(document: StudentDocument): DocumentResponseDto {
+  private mapDocumentToResponse(
+    document: StudentDocument,
+  ): DocumentResponseDto {
     return {
       id: document.id,
       type: document.type,
@@ -326,7 +399,6 @@ export class ProfilesService {
       size: document.size,
       scanOk: document.scanOk,
       createdAt: document.createdAt,
-      // NEVER expose hash in response
     };
   }
 }

@@ -193,5 +193,12 @@ async FindMyCandidatures(user: User) {
     // Cascade delete will handle stages removal
     await this.candidatureRepository.remove(candidature);
   }
+
+  async GetAllCandidatures() {
+    return await this.candidatureRepository.find({
+      relations: ['student', 'subject'],
+      where: { status: CandidatureStatus.ACCEPTED },
+    });
+  }
   
 }

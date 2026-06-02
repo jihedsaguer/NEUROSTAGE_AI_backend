@@ -11,7 +11,10 @@ import {
   Query,
   BadRequestException,
   ParseIntPipe,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfilesService } from './profiles.service';
 import {
   CreateProfileDto,
@@ -53,10 +56,8 @@ export class ProfilesController {
     @Request() req,
     @Body() createProfileDto: CreateProfileDto,
   ): Promise<ProfileResponseDto> {
-    // First get or create the base profile
-    const baseProfile = await this.profilesService.getOrCreateProfile(req.user);
+    await this.profilesService.getOrCreateProfile(req.user);
 
-    // Then update it with provided data
     return await this.profilesService.updateProfile(
       req.user.id,
       createProfileDto,
@@ -82,18 +83,25 @@ export class ProfilesController {
 
   /**
    * POST /profiles/documents
-   * Upload document metadata
+   * Upload document file (multipart: type + file)
    */
   @Post('documents')
   @Roles(SYSTEM_ROLES.STUDENT)
   @Audit('UPLOAD_DOCUMENT', 'Document')
+  @UseInterceptors(FileInterceptor('file'))
   async uploadDocument(
     @Request() req,
     @Body() uploadDocumentDto: UploadDocumentDto,
+    @UploadedFile() file: Express.Multer.File,
   ): Promise<DocumentResponseDto> {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
     return await this.profilesService.uploadDocument(
       req.user.id,
-      uploadDocumentDto,
+      uploadDocumentDto.type,
+      file,
     );
   }
 
@@ -110,12 +118,10 @@ export class ProfilesController {
     @Query('offset', new ParseIntPipe({ optional: true })) offset?: number,
     @Query('type') type?: string,
   ): Promise<PaginatedResponseDto<DocumentResponseDto>> {
-    // Validate limit if provided
     if (limit && (limit < 1 || limit > 100)) {
       throw new BadRequestException('Limit must be between 1 and 100');
     }
 
-    // Validate offset if provided
     if (offset && offset < 0) {
       throw new BadRequestException('Offset must be >= 0');
     }
@@ -135,7 +141,10 @@ export class ProfilesController {
   @Delete('documents/:id')
   @Roles(SYSTEM_ROLES.STUDENT)
   @Audit('DELETE_DOCUMENT', 'Document')
-  async deleteDocument(@Param('id') documentId: string, @Request() req): Promise<{ message: string }> {
+  async deleteDocument(
+    @Param('id') documentId: string,
+    @Request() req,
+  ): Promise<{ message: string }> {
     await this.profilesService.deleteDocument(documentId, req.user.id);
     return { message: 'Document deleted successfully' };
   }

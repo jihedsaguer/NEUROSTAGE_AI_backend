@@ -21,8 +21,7 @@ import { Audit } from '../../common/audit/audit.decorator';
 export class StagesController {
   constructor(private readonly stagesService: StagesService) {}
 
-  // ─── Admin endpoints ─────────────────────────────────────────────────────────
-
+  // ─── Admin endpoints 
   @Post()
   @Roles(SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
   @Audit('CREATE_STAGE', 'Stage')
@@ -57,6 +56,13 @@ export class StagesController {
     return this.stagesService.assignEncadrantAcad(id, dto);
   }
 
+  @Patch(':id/complete')
+  @Roles(SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
+  @Audit('COMPLETE_STAGE', 'Stage')
+  completeStage(@Param('id') id: string) {
+    return this.stagesService.completeStage(id);
+  }
+
   @Patch(':id/cancel')
   @Roles(SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
   @Audit('CANCEL_STAGE', 'Stage')
@@ -64,7 +70,7 @@ export class StagesController {
     return this.stagesService.cancelStage(id);
   }
 
-  // ─── Shared: get by ID (role-scoped visibility) ──────────────────────────────
+  // ─── Shared: get by ID (role-scoped visibility)
 
   @Get(':id')
   getStageById(@Param('id') id: string, @Request() req) {

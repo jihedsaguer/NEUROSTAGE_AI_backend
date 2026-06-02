@@ -1,28 +1,143 @@
 # Frontend Prompt — Stages Module (NEUROSTAGE AI)
 
-You are a senior React frontend engineer working on **NEUROSTAGE AI**, a production-grade internship management platform. Your task is to implement the complete **Stages** feature for the frontend, covering TypeScript types, Redux Toolkit state management, API layer, and all UI pages for both Admin and Student roles.
+You are a senior React frontend engineer tasked with refining and completing the frontend Stages feature using the existing implementation as the foundation.
+
+This prompt is an enhancement plan, not a full rebuild: leverage the current pages, components, and store logic already in place, and fill the proven gaps in UI, routing, and backend contract alignment.
 
 ---
 
-## 🧱 TECH STACK (already in place — do NOT change)
+## Objectives
 
-- React + TypeScript
-- Redux Toolkit (RTK Query or createAsyncThunk — match existing pattern)
-- React Router v6
-- Tailwind CSS (or the existing UI library in the project)
-- Axios (or fetch — match existing API client pattern)
-- JWT stored in localStorage/cookie (match existing auth pattern)
-- Role-based rendering already handled via auth context/store
+- Align the Stages frontend with backend behavior and contracts using current app structure.
+- Improve and complete existing role-based pages for Admin, Student, Encadrant Pro, and Encadrant Acad.
+- Add or fix only the missing routing, navigation, and state logic required for a polished experience.
+- Preserve and reuse existing components, pages, and data flows wherever possible.
+- Avoid hardcoded data, duplicated logic, and any UI that contradicts backend roles or endpoints.
 
 ---
 
-## 📐 EXACT BACKEND CONTRACTS
+## Existing backend behavior to respect
 
-### Base URL: `/stages`
+The backend currently supports:
+- Admin creation of stages from accepted candidatures
+- Admin editing of stage metadata and status
+- Admin assignment/reassignment of professional and academic supervisors
+- Admin cancellation of stages
+- Student retrieval of their own stage via `/stages/my/stage`
+- Encadrant Pro retrieval of supervised stages via `/stages/my/as-pro`
+- Encadrant Acad retrieval of tutored stages via `/stages/my/as-acad`
 
-### Types to implement (match exactly):
+The frontend must faithfully map to these endpoints and not invent a parallel workflow.
 
-```typescript
+---
+
+## Core frontend requirements
+
+### 1. Routing
+
+Add dedicated routes for each role and avoid conflicts.
+
+Required routes:
+- `/admin/stages`
+- `/admin/stages/create` or `/admin/stages/new`
+- `/admin/stages/:id`
+- `/student/stage`
+- `/pro/stages`
+- `/acad/stages`
+
+Routing rules:
+- Register `/student/stage`, `/pro/stages`, and `/acad/stages` before any generic `/stages/:id` route.
+- Protect admin routes so only users with `ADMIN_FORMATION` or `SUPER_ADMIN` see them.
+- Protect pro routes so only `ENCADRANT_PRO` users see them.
+- Protect acad routes so only `ENCADRANT_ACADEMIQUE` users see them.
+- Use existing auth state from the app; do not recreate role-check logic.
+
+### 2. Navigation / Dashboard
+
+Enhance platform navigation by adding stage-related links to the appropriate dashboards.
+
+- Admin dashboard should include a "Stages" entry linking to `/admin/stages`.
+- Student dashboard should include "Mon Stage" linking to `/student/stage`.
+- Encadrant Pro dashboard should include "Mes Stages" linking to `/pro/stages`.
+- Encadrant Acad dashboard should include "Mes Stages" linking to `/acad/stages`.
+
+Ensure navigation is role-aware and does not surface irrelevant pages.
+
+### 3. Page responsibilities
+
+#### Admin pages
+
+`/admin/stages`
+- List all stages
+- Filter by status and search by student/subject
+- Display supervisor assignment states and stage dates
+- Support actions: view detail, edit, cancel
+
+`/admin/stages/:id`
+- Show stage details, student info, subject info, supervisor info
+- Allow reassigning encadrant pro and encadrant acad
+- Allow updating status, dates, and admin notes
+- Allow cancelling stage with confirmation
+
+`/admin/stages/create`
+- Promote an accepted candidature to a stage
+- Allow optional explicit `encadrantProId` and `encadrantAcadId`
+- Use backend candidature and user data; do not hardcode lists
+- Validate date ranges and required fields
+
+#### Student page
+
+`/student/stage`
+- Show the student’s current stage if it exists
+- If not, render a soft empty state explaining that the stage is pending
+- Use a status banner with French labels and colors
+- Display subject details, encadrant pro information, and encadrant acad information
+- Render read-only content only; no edit controls
+
+#### Encadrant Pro page
+
+`/pro/stages`
+- List stages where current user is encadrant pro
+- Show student name, subject title, status, and dates
+- Provide a view-only detail or link to stage information
+- Do not expose admin-only actions
+
+#### Encadrant Acad page
+
+`/acad/stages`
+- List stages where current user is encadrant acad
+- Show student name, subject title, status, and dates
+- Provide a view-only detail or link to stage information
+- Do not expose admin-only actions
+
+### 4. UI expectations
+
+Use existing project UI conventions and keep the interface polished.
+
+- Prefer shadcn-style components if the project already uses them.
+- Implement a reusable `StageBadge` component for status labels.
+- Use cards, tables, modals, and forms that feel consistent with the platform.
+- Use color-coded, accessible status visuals.
+- Keep actions context-specific: admin actions on admin pages only.
+
+### 5. State and data flow
+
+Implement a centralized stage state slice or service consistent with the application.
+
+Data should be fetched from backend endpoints, not simulated.
+
+Key concepts:
+- `stage` list for admin pages
+- single `stage` object for student and detail pages
+- separate list endpoints for pro and acad roles
+- form payloads must match backend DTOs
+- preserve existing auth token / jwt handling
+
+### 6. Backend contracts and payloads
+
+Use these contracts exactly for frontend typing.
+
+```ts
 export type StageStatus = 'PENDING_ACAD' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
 
 export interface StageUser {
@@ -47,8 +162,8 @@ export interface Stage {
   student: StageUser;
   encadrantPro: StageUser;
   encadrantAcad: StageUser | null;
-  startDate: string | null;   // ISO date string
-  endDate: string | null;     // ISO date string
+  startDate: string | null;
+  endDate: string | null;
   adminNotes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -56,10 +171,10 @@ export interface Stage {
 
 export interface CreateStagePayload {
   candidatureId: string;
-  encadrantProId?: string;    // optional — defaults to subject.createdBy if they are encadrant_pro
+  encadrantProId?: string;
   encadrantAcadId?: string;
-  startDate?: string;         // ISO date string
-  endDate?: string;           // ISO date string
+  startDate?: string;
+  endDate?: string;
   adminNotes?: string;
 }
 
@@ -70,194 +185,52 @@ export interface UpdateStagePayload {
   adminNotes?: string;
 }
 
-export interface AssignProPayload {
-  encadrantProId: string;
-}
-
-export interface AssignAcadPayload {
-  encadrantAcadId: string;
-}
+export interface AssignProPayload { encadrantProId: string; }
+export interface AssignAcadPayload { encadrantAcadId: string; }
 ```
 
-### API Endpoints:
+### 7. Error handling and edge cases
 
-| Method | Endpoint | Role | Description |
-|--------|----------|------|-------------|
-| POST | `/stages` | ADMIN | Create stage from accepted candidature |
-| GET | `/stages` | ADMIN | Get all stages |
-| GET | `/stages/:id` | ALL (scoped) | Get stage by ID |
-| PATCH | `/stages/:id` | ADMIN | Update stage metadata/status |
-| PATCH | `/stages/:id/assign-pro` | ADMIN | Assign/reassign encadrant pro |
-| PATCH | `/stages/:id/assign-acad` | ADMIN | Assign/reassign encadrant acad |
-| PATCH | `/stages/:id/cancel` | ADMIN | Cancel a stage |
-| GET | `/stages/my/stage` | STUDENT | Get own stage |
-| GET | `/stages/my/as-pro` | ENCADRANT_PRO | Get supervised stages |
-| GET | `/stages/my/as-acad` | ENCADRANT_ACAD | Get tutored stages |
+- `encadrantAcad` may be `null`; render gracefully.
+- Backend returns a single object for `/stages/my/stage`; do not treat it as an array.
+- Do not rely on hardcoded role lists or user selections.
+- If a stage already exists for a candidature, the frontend should show a clear error from the backend rather than silently failing.
+- All mutation flows must refresh the relevant data after success.
 
----
+### 8. Implementation guidance
 
-## 🗂️ FILES TO CREATE
-
-### 1. Types — `src/types/stage.types.ts`
-
-Implement all types listed above. Also add:
-
-```typescript
-export interface StagesState {
-  stages: Stage[];
-  currentStage: Stage | null;
-  loading: boolean;
-  error: string | null;
-}
-```
+- Keep the logic simple and aligned with backend roles.
+- Avoid adding routes or pages that the backend does not support.
+- Do not add fake student or pro dashboards beyond the required pages.
+- Prefer reusable UI components over repeated markup.
+- Keep the stage module isolated and modular so it can be extended later.
 
 ---
 
-### 2. API Layer — `src/api/stageApi.ts`
+## Deliverables
 
-Use the existing axios instance (with JWT interceptor already configured). Implement:
+Build the following in the frontend project:
 
-```typescript
-export const stageApi = {
-  // Admin
-  createStage: (payload: CreateStagePayload) => Promise<Stage>
-  getAllStages: () => Promise<Stage[]>
-  getStageById: (id: string) => Promise<Stage>
-  updateStage: (id: string, payload: UpdateStagePayload) => Promise<Stage>
-  assignPro: (id: string, payload: AssignProPayload) => Promise<Stage>
-  assignAcad: (id: string, payload: AssignAcadPayload) => Promise<Stage>
-  cancelStage: (id: string) => Promise<Stage>
-
-  // Student
-  getMyStage: () => Promise<Stage>
-
-  // Encadrant Pro
-  getMyStagesAsPro: () => Promise<Stage[]>
-
-  // Encadrant Acad
-  getMyStagesAsAcad: () => Promise<Stage[]>
-}
-```
+- `src/types/stage.types.ts`
+- `src/api/stageApi.ts`
+- `src/store/slices/stagesSlice.ts`
+- Admin pages: `/admin/stages`, `/admin/stages/create`, `/admin/stages/:id`
+- Student page: `/student/stage`
+- Encadrant Pro page: `/pro/stages`
+- Encadrant Acad page: `/acad/stages`
+- Reusable `StageBadge` component
+- Role-aware dashboard links and routing guards
 
 ---
 
-### 3. Redux Slice — `src/store/slices/stagesSlice.ts`
+## Quality criteria for the prompt
 
-Use `createAsyncThunk` + `createSlice`. Implement thunks for every API call above.
+- The implementation must not break existing backend logic.
+- The frontend should mirror backend role restrictions and API contract exactly.
+- The architecture should remain consistent with the existing app.
+- The feature should feel production-ready: clear UX, accessible badges, loading and error states, and role-specific visibility.
+- Keep the code clean, minimal, and easy to maintain.
 
-State shape:
-```typescript
-{
-  stages: Stage[];          // admin list
-  currentStage: Stage | null;  // student/encadrant single view
-  selectedStage: Stage | null; // admin detail view
-  loading: boolean;
-  error: string | null;
-}
-```
-
-Handle all three async states (`pending`, `fulfilled`, `rejected`) for each thunk.
-
-Export all thunks and the reducer.
-
----
-
-## 🖥️ PAGES TO BUILD
-
-### ADMIN PAGES
-
----
-
-#### `AdminStagesPage` — `/admin/stages`
-
-**Purpose:** Full list of all stages with management actions.
-
-**Layout:**
-- Page title: "Gestion des Stages"
-- Stats bar at top: total count, breakdown by status (PENDING_ACAD / ACTIVE / COMPLETED / CANCELLED) shown as colored badge counters
-- Filter bar: filter by status (dropdown), search by student name or subject title (text input)
-- Table with columns:
-  - Student (firstName + lastName)
-  - Subject (title)
-  - Encadrant Pro (firstName + lastName, or "Non assigné" badge)
-  - Encadrant Acad (firstName + lastName, or "En attente" badge in orange)
-  - Status (colored badge: PENDING_ACAD=orange, ACTIVE=green, COMPLETED=blue, CANCELLED=red)
-  - Start Date / End Date
-  - Actions column: "Voir", "Modifier", "Annuler" buttons
-
-**Behavior:**
-- On mount: dispatch `fetchAllStages`
-- "Voir" → navigate to `/admin/stages/:id`
-- "Modifier" → open `EditStageModal`
-- "Annuler" → confirmation dialog → dispatch `cancelStage`
-- Show loading skeleton while fetching
-- Show empty state if no stages
-
----
-
-#### `AdminStageDetailPage` — `/admin/stages/:id`
-
-**Purpose:** Full detail view of a single stage with all assignment controls.
-
-**Layout:**
-- Back button → `/admin/stages`
-- Stage header card: subject title, status badge, dates
-- Two-column grid:
-  - Left: Student info card (name, email)
-  - Right: Subject info card (title, level, technologies as tags)
-- Supervisors section:
-  - Encadrant Pro card: name + email + "Réassigner" button
-  - Encadrant Acad card: name + email + "Réassigner" button (or "Assigner un encadrant académique" CTA if null — highlighted in orange since stage is PENDING_ACAD)
-- Admin Notes section: textarea (editable inline, save on blur or explicit save button)
-- Danger zone: "Annuler le stage" button (red, with confirmation modal)
-
-**Modals needed:**
-- `AssignProModal`: searchable dropdown of users with `encadrant_pro` role → submit calls `assignPro`
-- `AssignAcadModal`: searchable dropdown of users with `encadrant_academique` role → submit calls `assignAcad`
-- `EditStageModal`: form with status select, startDate, endDate, adminNotes → submit calls `updateStage`
-- `CancelStageModal`: confirmation with warning text
-
-**Behavior:**
-- On mount: dispatch `fetchStageById(id)`
-- After any mutation: re-fetch stage to reflect updated state
-- Show toast notification on success/error
-
----
-
-#### `AdminCreateStageModal` (or page `/admin/stages/create`)
-
-**Purpose:** Promote an accepted candidature to a stage.
-
-**Form fields:**
-- `candidatureId` — searchable select showing accepted candidatures (id + student name + subject title)
-- `encadrantProId` — optional searchable select of `encadrant_pro` users (with helper text: "Laissez vide pour utiliser le créateur du sujet")
-- `encadrantAcadId` — optional searchable select of `encadrant_academique` users
-- `startDate` — date picker
-- `endDate` — date picker
-- `adminNotes` — textarea
-
-**Validation:**
-- `candidatureId` required
-- `endDate` must be after `startDate` if both provided
-
-**Behavior:**
-- On submit: dispatch `createStage` → on success close modal and refresh list
-
----
-
-### STUDENT PAGES
-
----
-
-#### `StudentStagePage` — `/student/stage`
-
-**Purpose:** Student's single view of their internship.
-
-**Layout:**
-- Page title: "Mon Stage"
-- If no stage: empty state card — "Votre stage n'a pas encore été créé. Votre candidature est en cours de traitement."
-- If stage exists:
-  - Status banner at top (color-coded, with human-readable label):
     - PENDING_ACAD → orange — "En attente d'un encadrant académique"
     - ACTIVE → green — "Stage en cours"
     - COMPLETED → blue — "Stage terminé"

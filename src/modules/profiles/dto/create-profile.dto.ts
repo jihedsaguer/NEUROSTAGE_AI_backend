@@ -30,8 +30,4 @@ export class CreateProfileDto {
   @IsString({ each: true })
   @IsOptional()
   skills?: string[];
-
-  @IsString()
-  @IsOptional()
-  cinLast3Digits?: string;
 }
