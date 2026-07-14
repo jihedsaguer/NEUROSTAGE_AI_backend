@@ -7,7 +7,7 @@ import {
   Max,
   IsEnum,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { SubjectStatus } from '../entities/subject.entity';
 
 export enum SortOrder {
@@ -39,6 +39,7 @@ export class QuerySubjectsFilterDto {
   @IsEnum(SubjectStatus, { each: true })
   @IsOptional()
   @Type(() => String)
+  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
   status?: SubjectStatus[];
 
   @IsNumber()

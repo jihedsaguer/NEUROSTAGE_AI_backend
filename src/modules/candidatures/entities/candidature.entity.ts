@@ -54,6 +54,9 @@ export class Candidature {
     @Column({ type: 'float', nullable: true })
     scoreMatch: number;
 
+    @Column({ type: 'text', nullable: true, default: null })
+    matchDetails: string | null;
+
     @UpdateDateColumn()
     updatedAt: Date;
 }

@@ -125,8 +125,8 @@ export class StagesService {
     } else if (dto.encadrantProEmail) {
       encadrantPro = await this.resolveEncadrantProByEmail(dto.encadrantProEmail);
     } else {
-      const subjectCreator = candidature.subject.createdBy;
-      if (!this.isValidAutoStageSupervisor(subjectCreator)) {
+      const subjectCreator = candidature.subject?.createdBy;
+      if (!subjectCreator || !this.isValidAutoStageSupervisor(subjectCreator)) {
         throw new BadRequestException(
           'Subject creator must be encadrant_pro, admin_formation, or super_admin. Please explicitly provide encadrantProId or encadrantProEmail.',
         );
@@ -203,10 +203,10 @@ export class StagesService {
     }
 
     // For auto-creation, use subject creator as encadrant pro (must have the role)
-    const subjectCreator = candidature.subject.createdBy;
-    if (!this.isValidAutoStageSupervisor(subjectCreator)) {
+    const subjectCreator = candidature.subject?.createdBy;
+    if (!subjectCreator || !this.isValidAutoStageSupervisor(subjectCreator)) {
       throw new BadRequestException(
-        `Subject creator ${subjectCreator.email} is not authorized to auto-create a stage. Must be encadrant_pro, admin_formation, or super_admin.`,
+        `Subject creator ${subjectCreator?.email ?? 'unknown'} is not authorized to auto-create a stage. Must be encadrant_pro, admin_formation, or super_admin.`,
       );
     }
 
@@ -521,22 +521,22 @@ export class StagesService {
       status: stage.status,
       candidatureId: stage.candidatureId,
       subject: {
-        id: stage.subject.id,
-        title: stage.subject.title,
-        level: stage.subject.level,
-        technologies: stage.subject.technologies,
+        id: stage.subject?.id,
+        title: stage.subject?.title,
+        level: stage.subject?.level,
+        technologies: stage.subject?.technologies,
       },
       student: {
-        id: stage.student.id,
-        firstName: stage.student.firstName,
-        lastName: stage.student.lastName,
-        email: stage.student.email,
+        id: stage.student?.id,
+        firstName: stage.student?.firstName,
+        lastName: stage.student?.lastName,
+        email: stage.student?.email,
       },
       encadrantPro: {
-        id: stage.encadrantPro.id,
-        firstName: stage.encadrantPro.firstName,
-        lastName: stage.encadrantPro.lastName,
-        email: stage.encadrantPro.email,
+        id: stage.encadrantPro?.id,
+        firstName: stage.encadrantPro?.firstName,
+        lastName: stage.encadrantPro?.lastName,
+        email: stage.encadrantPro?.email,
       },
       encadrantAcad: stage.encadrantAcad
         ? {

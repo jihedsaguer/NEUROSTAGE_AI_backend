@@ -28,19 +28,19 @@ export class CandidaturesService {
     return {
       id: candidature.id,
         student: {
-            id: candidature.student.id,
-            email: candidature.student.email,
-            firstName: candidature.student.firstName,
-            lastName: candidature.student.lastName,
+            id: candidature.student?.id,
+            email: candidature.student?.email,
+            firstName: candidature.student?.firstName,
+            lastName: candidature.student?.lastName,
         },
         subject: {
-            id: candidature.subject.id,
-            title: candidature.subject.title,
-            description: candidature.subject.description,
-            technologies: candidature.subject.technologies,
-            level: candidature.subject.level,
-            prerequisites: candidature.subject.prerequisites,
-            status: candidature.subject.status,
+            id: candidature.subject?.id,
+            title: candidature.subject?.title,
+            description: candidature.subject?.description,
+            technologies: candidature.subject?.technologies,
+            level: candidature.subject?.level,
+            prerequisites: candidature.subject?.prerequisites,
+            status: candidature.subject?.status,
         },
         status: candidature.status,
         motivation: candidature.motivation,
@@ -92,7 +92,7 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
             throw new NotFoundException('Subject not found');
         }
 
-        const IsOwner = subject.createdBy.id === user.id;
+        const IsOwner = subject.createdBy?.id === user.id;
         const IsAdmin = user.roles.some(role => role.name === SYSTEM_ROLES.ADMIN_FORMATION || role.name === SYSTEM_ROLES.SUPER_ADMIN);
         if (!IsOwner && !IsAdmin) {
             throw new ForbiddenException('You do not have access to this resource');
@@ -107,7 +107,7 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
     if (!candidature) {
       throw new NotFoundException('Candidature not found');
     }
-    const IsOwner = candidature.subject.createdBy.id === user.id;
+    const IsOwner = candidature.subject?.createdBy?.id === user.id;
     const IsAdmin = user.roles.some(role => role.name === SYSTEM_ROLES.ADMIN_FORMATION || role.name === SYSTEM_ROLES.SUPER_ADMIN);
     if (!IsOwner && !IsAdmin) {
       throw new ForbiddenException('You do not have access to this resource');
@@ -159,7 +159,10 @@ async FindMyCandidatures(user: User) {
       throw new ForbiddenException('Only students can view their candidatures');
     }
 
-    return await this.candidatureRepository.find({ where: { student: { id: user.id } } });
+    return await this.candidatureRepository.find({ 
+      where: { student: { id: user.id } },
+      relations: ['student', 'subject'],
+    });
 }
 
   /**
@@ -188,7 +191,7 @@ async FindMyCandidatures(user: User) {
         role.name === SYSTEM_ROLES.ADMIN_FORMATION ||
         role.name === SYSTEM_ROLES.SUPER_ADMIN,
     );
-    const IsOwner = candidature.student.id === user.id;
+    const IsOwner = candidature.student?.id === user.id;
 
     // Only the student (owner) or admin can cancel a candidature
     if (IsStudent && !IsOwner) {

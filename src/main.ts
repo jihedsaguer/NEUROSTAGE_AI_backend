@@ -1,8 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { AllExceptionsFilter } from './common/filters/exception.filter';
 import { LoggerService } from './common/logger/logger.service';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -13,7 +15,7 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: 'http://localhost:5173',
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
@@ -30,9 +32,21 @@ async function bootstrap() {
   // Global exception filter
   app.useGlobalFilters(exceptionFilter);
 
+  // Serve uploaded files statically at /uploads
+  try {
+    const uploadDir = process.env.UPLOAD_DIR ?? './uploads';
+    const absolute = join(process.cwd(), uploadDir);
+    (app as unknown as NestExpressApplication).useStaticAssets(absolute, {
+      prefix: '/uploads',
+    });
+    Logger.log(`Serving static uploads from ${absolute} at /uploads`);
+  } catch (e) {
+    Logger.warn(`Failed to enable static uploads serving: ${(e as Error).message}`);
+  }
+
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
-  loggerService.log(`Application listening on port ${port}`);
+  await app.listen(port, '0.0.0.0');
+  loggerService.log(`Application listening on port ${port} on 0.0.0.0`);
 }
 
 bootstrap();

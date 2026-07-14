@@ -2,13 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SubjectsService } from './subjects.service';
 import { Subject, SubjectStatus } from './entities/subject.entity';
+import { GenerationIA } from '../ai/entities/generation-ia.entity';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
-import { PaginatedResponseDto } from '../common/dto';
+import { PaginatedResponseDto } from '../../common/dto';
 import { QuerySubjectsFilterDto, SortField, SortOrder } from './dto';
 
 describe('SubjectsService', () => {
   let service: SubjectsService;
   let mockRepository: any;
+  let mockGenerationRepository: any;
 
   const mockUser = {
     id: 'user-1',
@@ -59,6 +61,9 @@ describe('SubjectsService', () => {
       remove: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
+    mockGenerationRepository = {
+      save: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -66,6 +71,10 @@ describe('SubjectsService', () => {
         {
           provide: getRepositoryToken(Subject),
           useValue: mockRepository,
+        },
+        {
+          provide: getRepositoryToken(GenerationIA),
+          useValue: mockGenerationRepository,
         },
       ],
     }).compile();
@@ -75,6 +84,49 @@ describe('SubjectsService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    delete (global as any).fetch;
+  });
+
+  describe('generateSubjectDraft', () => {
+    it('should strip rawPromptUsed from the returned drafts and persist it only in the audit prompt', async () => {
+      process.env.AI_SERVICE_URL = 'http://ai-service:8001';
+      process.env.INTERNAL_SECRET = 'secret';
+      (global as any).fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          rawPromptUsed: 'system prompt',
+          drafts: [
+            {
+              title: 'AI Subject',
+              description: 'Generated description',
+              technologies: ['TypeScript'],
+              prerequisites: ['NestJS'],
+              level: 'Master',
+            },
+          ],
+        }),
+      });
+
+      const result = await service.generateSubjectDraft(['student-1'], 'enc-1', 'context');
+
+      expect(result).toEqual([
+        {
+          titre: 'AI Subject',
+          description: 'Generated description',
+          techno: ['TypeScript'],
+          prerequis: ['NestJS'],
+          niveau: 'Master',
+        },
+      ]);
+      expect(mockGenerationRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'system prompt',
+          validePar: 'enc-1',
+        }),
+      );
+      const savedPayload = mockGenerationRepository.save.mock.calls[0][0];
+      expect(savedPayload.response).not.toHaveProperty('rawPromptUsed');
+    });
   });
 
   describe('createSubject', () => {

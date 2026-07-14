@@ -135,6 +135,16 @@ export class ProfilesController {
   }
 
   /**
+   * GET /profiles/me/subject-suggestions
+   * Returns AI-driven subject suggestions for the current student.
+   */
+  @Get('me/subject-suggestions')
+  @Roles(SYSTEM_ROLES.STUDENT)
+  async getSubjectSuggestions(@Request() req) {
+    return await this.profilesService.getSubjectSuggestions(req.user.id);
+  }
+
+  /**
    * DELETE /profiles/documents/:id
    * Delete a document (only owner can delete)
    */

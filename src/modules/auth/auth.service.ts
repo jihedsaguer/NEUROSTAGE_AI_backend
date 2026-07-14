@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
@@ -20,15 +20,17 @@ import { Inject, forwardRef } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
-    constructor(
-    @InjectRepository(User) 
-     private   readonly userRepository: Repository<User>,
+  private readonly logger = new Logger(AuthService.name);
+
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Role)
-    private  readonly roleRepository: Repository<Role>,
+    private readonly roleRepository: Repository<Role>,
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => EmailService))
-    private readonly emailService: EmailService
-    ) {}
+    private readonly emailService: EmailService,
+  ) {}
 
 
 async register(registerDto: RegisterDto): Promise<UserResponseDto> {
@@ -49,29 +51,45 @@ async register(registerDto: RegisterDto): Promise<UserResponseDto> {
   });
 
   if (!defaultRole) {
-    throw new InternalServerErrorException(
-      'Default role configuration error',
-    );
+    throw new InternalServerErrorException('Default role configuration error');
   }
 
-  
+  // Step 1: create and SAVE user first to get a real DB id
   const user = this.userRepository.create({
     email,
     password: hashedPassword,
     firstName,
     lastName,
     isActive: true,
+    isEmailVerified: false,
     roles: [defaultRole],
   });
-await this.generateEmailVerificationToken(user);
-  await this.userRepository.save(user);
+  const savedUser = await this.userRepository.save(user);
 
-  const savedUser = await this.userRepository.findOne({
-    where: { id: user.id },
+  // Step 2: NOW generate and persist verification token on the saved entity
+  const token = await this.generateEmailVerificationToken(savedUser);
+
+  // Step 3: send verification email — never throw, always log
+  try {
+    await this.emailService.sendVerificationEmail(savedUser, token);
+  } catch (err) {
+    this.logger.error(
+      `Failed to send verification email to ${savedUser.email}: ${(err as Error).message}`,
+    );
+    // In dev mode, log the token so developers can verify accounts manually
+    if (process.env.NODE_ENV !== 'production' && !process.env.MAIL_HOST) {
+      this.logger.warn(
+        `[DEV] Verification token for ${savedUser.email}: ${token}`,
+      );
+    }
+  }
+
+  const fullUser = await this.userRepository.findOne({
+    where: { id: savedUser.id },
     relations: ['roles'],
   });
 
-  return plainToInstance(UserResponseDto, savedUser, {
+  return plainToInstance(UserResponseDto, fullUser, {
     excludeExtraneousValues: true,
   });
 }
@@ -106,8 +124,9 @@ async validateUser(email: string, password: string): Promise<User> {
       .flatMap(r => r.permissions?.map(p => p.action) ?? []);
     const uniquePermissions = Array.from(new Set(permissions));
 
+    // Email verification is required before login
     if (!user.isEmailVerified) {
-      throw new UnauthorizedException('Email is not verified');
+      throw new UnauthorizedException('Please verify your email before logging in');
     }
 
     const payload: JwtPayload = {
@@ -137,29 +156,31 @@ async validateUser(email: string, password: string): Promise<User> {
     user.emailVerificationToken = token;
     user.emailVerificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await this.userRepository.save(user);
-
-    try {
-      await this.emailService.sendVerificationEmail(user, token);
-    } catch (err) {
-      console.error('Failed to send verification email', err);
-    }
-
     return token;
   }
 
   async verifyEmail(token: string): Promise<void> {
+    if (!token) {
+      throw new NotFoundException('Verification token is required');
+    }
+
     const user = await this.userRepository.findOne({
       where: { emailVerificationToken: token },
+      relations: ['roles'],
     });
+
     if (!user) {
       throw new NotFoundException('Invalid verification token');
     }
+
     if (user.emailVerificationTokenExpires && user.emailVerificationTokenExpires < new Date()) {
       throw new NotFoundException('Verification token has expired');
     }
+
     user.isEmailVerified = true;
     user.emailVerificationToken = null;
     user.emailVerificationTokenExpires = null;
+
     await this.userRepository.save(user);
   }
 
@@ -232,8 +253,29 @@ async resendVerificationEmail(email: string): Promise<void> {
     if (user.isEmailVerified) {
       throw new ConflictException('Email is already verified');
     }
-    await this.setRefreshToken(user); // ensure refresh token persists
     const token = await this.generateEmailVerificationToken(user);
-    return;
+    try {
+      await this.emailService.sendVerificationEmail(user, token);
+    } catch (err) {
+      this.logger.error(
+        `Failed to resend verification email to ${user.email}: ${(err as Error).message}`,
+      );
+      if (process.env.NODE_ENV !== 'production' && !process.env.MAIL_HOST) {
+        this.logger.warn(`[DEV] Verification token for ${user.email}: ${token}`);
+      }
+    }
+  }
+
+  /**
+   * DEV ONLY — manually mark an email as verified without going through the
+   * email flow. Disabled in production. Used by GET /auth/dev/verify/:email.
+   */
+  async devVerifyEmail(email: string): Promise<void> {
+    if (process.env.NODE_ENV === 'production') return;
+    await this.userRepository.update(
+      { email },
+      { isEmailVerified: true },
+    );
+    this.logger.warn(`[DEV] Manually verified email for: ${email}`);
   }
 }

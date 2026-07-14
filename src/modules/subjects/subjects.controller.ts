@@ -11,6 +11,7 @@ import {
   Request,
   Query,
   UseInterceptors,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
 import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto, QuerySubjectsFilterDto } from './dto';
@@ -44,6 +45,14 @@ export class SubjectsController {
       req.user,
     );
   }
+
+  @Post('generate-draft')
+  @Roles(SYSTEM_ROLES.ENCADRANT_PRO, SYSTEM_ROLES.ADMIN_FORMATION)
+  @Audit('GENERATE_SUBJECT_DRAFT', 'GenerationIA')
+  async generateDraft(@Body() body: { studentIds: string[]; context?: string }, @Request() req) {
+    const encadreurId = req.user?.id;
+    return await this.subjectsService.generateSubjectDraft(body.studentIds || [], encadreurId, body.context);
+  }
   @Get()
   async getAllSubjects(
     @Query() filter: QuerySubjectsFilterDto,
@@ -67,7 +76,7 @@ export class SubjectsController {
   }
 
   @Get(':id')
-  async getSubjectById(@Param('id') id: string, @Request() req) {
+  async getSubjectById(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     return await this.subjectsService.getSubjectById(id, req.user);
   }
 
@@ -79,7 +88,7 @@ export class SubjectsController {
   )
   @Audit('UPDATE_SUBJECT', 'Subject')
   async updateSubject(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateSubjectDto: UpdateSubjectDto,
     @Request() req,
   ) {
@@ -97,18 +106,25 @@ export class SubjectsController {
     SYSTEM_ROLES.ADMIN_FORMATION,
   )
   @Audit('DELETE_SUBJECT', 'Subject')
-  async deleteSubject(@Param('id') id: string, @Request() req) {
+  async deleteSubject(@Param('id', ParseUUIDPipe) id: string, @Request() req) {
     await this.subjectsService.deleteSubject(id, req.user);
     return { message: 'Subject deleted successfully' };
   }
 
   @Audit('VALIDATE_SUBJECT', 'Subject')
   @Patch(':id/validate')
-  @Roles(SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
+  @Roles(
+    SYSTEM_ROLES.SUPER_ADMIN,
+    SYSTEM_ROLES.ADMIN_FORMATION,
+    SYSTEM_ROLES.ENCADRANT_PRO,
+  )
   async validateSubject(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() validateSubjectDto: ValidateSubjectDto,
+    @Request() req,
   ) {
-    return await this.subjectsService.validateSubject(id, validateSubjectDto);
+    return await this.subjectsService.validateSubject(id, validateSubjectDto, req.user);
   }
+
+
 }

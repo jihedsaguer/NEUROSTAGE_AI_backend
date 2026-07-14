@@ -129,6 +129,16 @@ export class StorageService {
     });
   }
 
+  /**
+   * Delete a public file URL by resolving it to the upload directory.
+   *
+   * NOTE: This method relies on `UPLOAD_BASE_URL` matching the runtime
+   * public URL that serves files. If you change the static hosting
+   * configuration (reverse proxy, CDN, different public path) you MUST
+   * also update `UPLOAD_BASE_URL` or this resolver will fail to map
+   * URL -> filesystem path and files will not be deleted. Keep this
+   * coupling in mind when deploying behind proxies.
+   */
   deleteFile(fileUrl: string): void {
     const absolutePath = this.resolveAbsolutePathFromUrl(fileUrl);
     if (!absolutePath) {

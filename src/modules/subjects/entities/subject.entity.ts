@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Candidature } from '../../candidatures/entities/candidature.entity';
@@ -48,6 +49,7 @@ export class Subject {
   status: SubjectStatus;
 
   @ManyToOne(() => User)
+  @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
   @OneToMany(() => Candidature, (candidature) => candidature.subject, {
@@ -61,4 +63,13 @@ export class Subject {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ default: false })
+  generatedByAi: boolean;
+
+  @Column('text', { nullable: true, default: null })
+  aiGenerationSource: string | null;
+
+  @Column({ type: 'uuid', nullable: true, default: null })
+  generatedForStudentId: string | null;
 }
