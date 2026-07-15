@@ -8,6 +8,9 @@ export class ProfileResponseDto {
   completionPercentage: number;
   isComplete: boolean;
   cinStatus: string;
+  cinLast3Digits?: string;
+  /** Foundation field for future AI CV processing integration */
+  isAiProcessed: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -1,33 +1,7 @@
-import {
-  IsString,
-  IsOptional,
-  IsArray,
-  IsNumber,
-  Min,
-  Max,
-} from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateProfileDto } from './create-profile.dto';
 
-export class UpdateProfileDto {
-  @IsString()
-  @IsOptional()
-  phone?: string;
-
-  @IsString()
-  @IsOptional()
-  university?: string;
-
-  @IsString()
-  @IsOptional()
-  level?: string;
-
-  @IsNumber()
-  @IsOptional()
-  @Min(2000)
-  @Max(2100)
-  graduationYear?: number;
-
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  skills?: string[];
-}
+/**
+ * All fields are optional — inherits validation rules from CreateProfileDto.
+ */
+export class UpdateProfileDto extends PartialType(CreateProfileDto) {}

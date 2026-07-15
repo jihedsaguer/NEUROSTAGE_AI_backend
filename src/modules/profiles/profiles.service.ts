@@ -112,11 +112,9 @@ export class ProfilesService {
 
     await this.refreshProfileCompletion(profile);
 
-    const updatedProfile = await this.profileRepository.findOne({
-      where: { id: profile.id },
-    });
-
-    return this.mapProfileToResponse(updatedProfile!);
+    // refreshProfileCompletion already saves the profile — return it directly
+    // without an extra DB round-trip.
+    return this.mapProfileToResponse(profile);
   }
 
   /**
@@ -127,6 +125,22 @@ export class ProfilesService {
     type: string,
     file: Express.Multer.File,
   ): Promise<DocumentResponseDto> {
+    // Synchronous size guard for CIN files to avoid processing large sensitive images
+    if (type === 'CIN' && file && file.size > 5 * 1024 * 1024) {
+      // Attempt to cleanup the uploaded file and reject immediately
+      try {
+        // cleanupUploadedFile is async; call deletePhysicalPath synchronously to remove temp file
+        if (file?.path) {
+          this.storageService.deletePhysicalPath(file.path);
+        } else {
+          // fallback to async cleanup
+          void this.cleanupUploadedFile(file);
+        }
+      } catch (err) {
+        // ignore
+      }
+      throw new BadRequestException('CIN image must be under 5MB');
+    }
     const validTypes = Object.keys(DOCUMENT_TYPE_RULES);
     if (!validTypes.includes(type)) {
       await this.cleanupUploadedFile(file);
@@ -145,23 +159,12 @@ export class ProfilesService {
     }
 
     if (type === 'CV') {
-      const hasCv = await this.hasCvDocument(profile.id);
       const existingCvs = await this.documentRepository.find({
         where: { profileId: profile.id, type: 'CV' },
       });
 
-      if (hasCv && existingCvs.length === 0) {
-        this.logger.warn(
-          `CV count indicates documents exist for profile ${profile.id} but no CV rows were found`,
-        );
-      }
-
       if (existingCvs.length > 0) {
-        await Promise.all(
-          existingCvs.map((doc) =>
-            Promise.resolve(this.storageService.deleteFile(doc.fileUrl)),
-          ),
-        );
+        existingCvs.forEach((doc) => this.storageService.deleteFile(doc.fileUrl));
         await this.documentRepository.remove(existingCvs);
       }
     }
@@ -173,7 +176,7 @@ export class ProfilesService {
       type,
       fileName: metadata.fileName,
       fileUrl: metadata.fileUrl,
-      fileType: metadata.fileType,
+      fileType: file.mimetype,
       size: metadata.size,
       hash: metadata.hash,
       profile,
@@ -185,6 +188,55 @@ export class ProfilesService {
 
     if (type === 'CV') {
       await this.refreshProfileCompletion(profile);
+      // Fire-and-forget: send CV to AI service for extraction + embedding
+      Promise.resolve()
+        .then(async () => {
+          try {
+            const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
+            const INTERNAL_SECRET = process.env.INTERNAL_SECRET;
+            if (!AI_SERVICE_URL || !INTERNAL_SECRET) return;
+
+            const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
+
+            // 1) request extraction (service may fetch the file via fileUrl)
+            const extractRes = await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/extract`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': INTERNAL_SECRET,
+              },
+              body: JSON.stringify({ filePath: file.path, userId, fileType: file.mimetype }),
+            });
+
+            if (!extractRes.ok) {
+              this.logger.warn(`AI extract returned ${extractRes.status}`);
+              return;
+            }
+
+            const extraction = await extractRes.json();
+            const extractedText = extraction?.text ?? extraction?.extractedText ?? null;
+
+            // 2) request embedding with extracted text and profile context
+            await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/embed/student`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': INTERNAL_SECRET,
+              },
+              body: JSON.stringify({
+                userId,
+                extractedText: extractedText ?? '',
+                skills: profile.skills ?? [],
+                university: profile.university ?? '',
+                specialization: '',
+                level: profile.level ?? '',
+              }),
+            });
+          } catch (err) {
+            this.logger.warn(`AI CV processing (fire-and-forget) failed: ${(err as Error).message}`);
+          }
+        })
+        .catch((err) => this.logger.warn(`AI CV processing scheduling failed: ${(err as Error).message}`));
     }
 
     return this.mapDocumentToResponse(savedDocument);
@@ -199,13 +251,8 @@ export class ProfilesService {
     offset: number = 0,
     type?: string,
   ): Promise<PaginatedResponseDto<DocumentResponseDto>> {
-    const profile = await this.profileRepository.findOne({
-      where: { userId },
-    });
-
-    if (!profile) {
-      throw new NotFoundException('Profile not found for this user');
-    }
+    // Ensure profile exists for new users (create-if-missing)
+    const profile = await this.ensureProfileForUser(userId);
 
     let query = this.documentRepository
       .createQueryBuilder('doc')
@@ -382,6 +429,8 @@ export class ProfilesService {
       completionPercentage: profile.completionPercentage,
       isComplete: profile.isComplete,
       cinStatus: profile.cinStatus,
+      cinLast3Digits: profile.cinLast3Digits ?? undefined,
+      isAiProcessed: profile.isAiProcessed,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
     };
@@ -400,5 +449,51 @@ export class ProfilesService {
       scanOk: document.scanOk,
       createdAt: document.createdAt,
     };
+  }
+
+  /**
+   * Mark the profile as AI-processed. Used by internal FastAPI callbacks.
+   */
+  async markAiProcessed(userId: string): Promise<void> {
+    const profile = await this.ensureProfileForUser(userId);
+    profile.isAiProcessed = true;
+    await this.profileRepository.save(profile);
+  }
+
+  /**
+   * Request subject suggestions from AI service for a student. Returns
+   * { suggestions: [], message?: string } on 404 or empty.
+   */
+  async getSubjectSuggestions(userId: string): Promise<any> {
+    try {
+      const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
+      const INTERNAL_SECRET = process.env.INTERNAL_SECRET;
+      if (!AI_SERVICE_URL) {
+        return { suggestions: [], message: 'AI service not configured' };
+      }
+
+      const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
+      const res = await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/suggest/${userId}`, {
+        method: 'GET',
+        headers: {
+          'X-Internal-Secret': INTERNAL_SECRET ?? '',
+        },
+      });
+
+      if (res.status === 404) {
+        return { suggestions: [], message: 'Upload a CV to get subject suggestions' };
+      }
+
+      if (!res.ok) {
+        this.logger.warn(`AI suggest returned ${res.status}`);
+        return { suggestions: [], message: 'No suggestions available' };
+      }
+
+      const payload = await res.json();
+      return { suggestions: payload.suggestions ?? [] };
+    } catch (err) {
+      this.logger.warn(`Failed to get AI suggestions: ${(err as Error).message}`);
+      return { suggestions: [], message: 'AI suggestions unavailable' };
+    }
   }
 }

@@ -6,6 +6,8 @@ import { User } from './entities/user.entity';
 import { Role } from '../roles/entities/role.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { StudentProfile } from '../profiles/entities/profiles.entity';
+import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 
 @Injectable()
 export class UsersService {
@@ -14,6 +16,8 @@ export class UsersService {
     private usersRepository: Repository<User>,
     @InjectRepository(Role)
     private rolesRepository: Repository<Role>,
+    @InjectRepository(StudentProfile)
+    private profilesRepository: Repository<StudentProfile>,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
@@ -105,5 +109,89 @@ export class UsersService {
 
   async validatePassword(password: string, hashedPassword: string): Promise<boolean> {
     return bcrypt.compare(password, hashedPassword);
+  }
+
+  /**
+   * Returns basic info for all active users — used by the chat participant selector.
+   * Intentionally lightweight: no passwords, no permissions, no full role objects.
+   */
+  async getChatParticipants(): Promise<
+    { id: string; firstName: string; lastName: string; email: string; role: string | null }[]
+  > {
+    const users = await this.usersRepository.find({
+      where: { isActive: true },
+      relations: ['roles'],
+      select: ['id', 'firstName', 'lastName', 'email'],
+    });
+
+    return users.map((u) => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email,
+      role: u.roles?.[0]?.name ?? null,
+    }));
+  }
+
+  /**
+   * Returns only students whose CV has been AI-processed (isAiProcessed = true).
+   * Used by encadreur_pro to pick students for subject draft generation.
+   * Uses a native query to avoid TypeORM camelCase/varchar-vs-uuid join issues.
+   */
+  async findStudentsWithEmbeddings(): Promise<
+    {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      university: string | null;
+      level: string | null;
+      skills: string[];
+      isAiProcessed: boolean;
+    }[]
+  > {
+    // Use a raw query to sidestep the varchar/uuid type mismatch that TypeORM
+    // doesn't cast automatically when the FK is stored as varchar.
+    const rows: Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      university: string | null;
+      level: string | null;
+      skills: string[];
+      isAiProcessed: boolean;
+    }> = await this.usersRepository.query(
+      `
+      SELECT
+        u.id,
+        u."firstName",
+        u."lastName",
+        u.email,
+        sp.university,
+        sp.level,
+        sp.skills,
+        sp."isAiProcessed"
+      FROM users u
+      INNER JOIN student_profiles sp ON sp."userId" = u.id::text
+      INNER JOIN user_roles ur ON ur.user_id = u.id
+      INNER JOIN roles r ON r.id = ur.role_id
+      WHERE r.name = $1
+        AND sp."isAiProcessed" = true
+        AND u."isActive" = true
+      `,
+      [SYSTEM_ROLES.STUDENT],
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      university: row.university ?? null,
+      level: row.level ?? null,
+      skills: Array.isArray(row.skills) ? row.skills : [],
+      isAiProcessed: row.isAiProcessed,
+    }));
   }
 }

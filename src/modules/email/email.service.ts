@@ -9,9 +9,8 @@ export class EmailService {
     private readonly mailerService: MailerService
   ) {}
   async sendVerificationEmail(user: User, token: string) {
-    // Point to the backend GET endpoint that auto-verifies
-    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-    const verificationLink = `${backendUrl}/email/verify?token=${token}`;
+    const backendUrl = process.env.BACKEND_URL || process.env.APP_URL || 'http://localhost:3000';
+    const verificationLink = `${backendUrl.replace(/\/$/, '')}/email/verify?token=${encodeURIComponent(token)}`;
 
     await this.mailerService.sendMail({
       to: user.email,

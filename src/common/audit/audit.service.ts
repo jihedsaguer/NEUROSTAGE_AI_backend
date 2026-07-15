@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between, Like, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { AuditLog } from './audit.entity';
 import { LoggerService } from '../logger/logger.service';
+
+export interface PaginatedAuditResult {
+  data: AuditLog[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 @Injectable()
 export class AuditService {
@@ -88,5 +96,64 @@ export class AuditService {
       order: { createdAt: 'DESC' },
       take: limit,
     });
+  }
+
+  /**
+   * Paginated, filterable audit log — used by the Admin Audit Center.
+   */
+  async getAllAuditLogs(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    action?: string;
+    resourceType?: string;
+    userId?: string;
+    from?: string;
+    to?: string;
+  }): Promise<PaginatedAuditResult> {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(100, params.limit ?? 25);
+    const skip = (page - 1) * limit;
+
+    const qb = this.auditLogRepository.createQueryBuilder('log');
+
+    if (params.search) {
+      qb.andWhere(
+        '(log.action ILIKE :search OR log.userId ILIKE :search OR log.resourceType ILIKE :search OR log.resourceId ILIKE :search)',
+        { search: `%${params.search}%` },
+      );
+    }
+
+    if (params.action) {
+      qb.andWhere('log.action ILIKE :action', { action: `%${params.action}%` });
+    }
+
+    if (params.resourceType) {
+      qb.andWhere('log.resourceType = :resourceType', { resourceType: params.resourceType });
+    }
+
+    if (params.userId) {
+      qb.andWhere('log.userId = :userId', { userId: params.userId });
+    }
+
+    if (params.from) {
+      qb.andWhere('log.createdAt >= :from', { from: new Date(params.from) });
+    }
+
+    if (params.to) {
+      qb.andWhere('log.createdAt <= :to', { to: new Date(params.to) });
+    }
+
+    qb.orderBy('log.createdAt', 'DESC').skip(skip).take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 }

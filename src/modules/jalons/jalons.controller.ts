@@ -24,12 +24,12 @@ import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 @Controller('jalons')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class JalonsController {
-  constructor(private readonly jalonsService: JalonsService) {}
+  constructor(private readonly jalonsService: JalonsService) { }
 
   // ─── Admin endpoints ──────────────────────────────────────────────────────────
 
   @Post()
-  @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN)
+  @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ENCADRANT_PRO)
   createJalon(@Body() dto: CreateJalonDto, @Request() req) {
     return this.jalonsService.createJalon(dto, req.user);
   }

@@ -1,7 +1,18 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany,OneToOne,JoinColumn, JoinTable, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToMany,
+  OneToOne,
+  JoinTable,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
 import { Role } from '../../roles/entities/role.entity';
 import { Exclude } from 'class-transformer';
 import { StudentProfile } from '../../profiles/entities/profiles.entity';
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -16,26 +27,24 @@ export class User {
   @Column()
   lastName: string;
 
-
   @Column({ nullable: true })
   @Exclude()
   password: string;
 
   @Column({ default: true })
   isActive: boolean;
-   
-@Column({ default: false, nullable: true })
+
+  @Column({ default: false, nullable: true })
   isEmailVerified: boolean;
-  
- 
+
   @Column({ type: 'varchar', nullable: true })
   emailVerificationToken: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
   emailVerificationTokenExpires: Date | null;
 
-  @Column({  type: 'varchar',nullable: true })
-    @Exclude()
+  @Column({ type: 'varchar', nullable: true })
+  @Exclude()
   refreshToken: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
@@ -48,7 +57,7 @@ export class User {
   updatedAt: Date;
 
   @DeleteDateColumn()
-  deletedAt: Date; 
+  deletedAt: Date;
 
   @ManyToMany(() => Role, (role) => role.users)
   @JoinTable({
@@ -58,8 +67,11 @@ export class User {
   })
   roles: Role[];
 
-
-  @OneToOne(() => StudentProfile, (profile) => profile.user, { cascade: true, eager: true })
-  @JoinColumn()
+  // FK lives on student_profiles.user_id — do NOT add @JoinColumn here.
+  // eager: false to avoid loading the full profile on every JWT validation.
+  @OneToOne(() => StudentProfile, (profile) => profile.user, {
+    cascade: true,
+    eager: false,
+  })
   profile: StudentProfile;
 }

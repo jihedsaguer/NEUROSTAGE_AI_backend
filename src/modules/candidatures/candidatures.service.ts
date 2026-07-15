@@ -28,19 +28,19 @@ export class CandidaturesService {
     return {
       id: candidature.id,
         student: {
-            id: candidature.student.id,
-            email: candidature.student.email,
-            firstName: candidature.student.firstName,
-            lastName: candidature.student.lastName,
+            id: candidature.student?.id,
+            email: candidature.student?.email,
+            firstName: candidature.student?.firstName,
+            lastName: candidature.student?.lastName,
         },
         subject: {
-            id: candidature.subject.id,
-            title: candidature.subject.title,
-            description: candidature.subject.description,
-            technologies: candidature.subject.technologies,
-            level: candidature.subject.level,
-            prerequisites: candidature.subject.prerequisites,
-            status: candidature.subject.status,
+            id: candidature.subject?.id,
+            title: candidature.subject?.title,
+            description: candidature.subject?.description,
+            technologies: candidature.subject?.technologies,
+            level: candidature.subject?.level,
+            prerequisites: candidature.subject?.prerequisites,
+            status: candidature.subject?.status,
         },
         status: candidature.status,
         motivation: candidature.motivation,
@@ -92,7 +92,7 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
             throw new NotFoundException('Subject not found');
         }
 
-        const IsOwner = subject.createdBy.id === user.id;
+        const IsOwner = subject.createdBy?.id === user.id;
         const IsAdmin = user.roles.some(role => role.name === SYSTEM_ROLES.ADMIN_FORMATION || role.name === SYSTEM_ROLES.SUPER_ADMIN);
         if (!IsOwner && !IsAdmin) {
             throw new ForbiddenException('You do not have access to this resource');
@@ -107,7 +107,7 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
     if (!candidature) {
       throw new NotFoundException('Candidature not found');
     }
-    const IsOwner = candidature.subject.createdBy.id === user.id;
+    const IsOwner = candidature.subject?.createdBy?.id === user.id;
     const IsAdmin = user.roles.some(role => role.name === SYSTEM_ROLES.ADMIN_FORMATION || role.name === SYSTEM_ROLES.SUPER_ADMIN);
     if (!IsOwner && !IsAdmin) {
       throw new ForbiddenException('You do not have access to this resource');
@@ -117,7 +117,9 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
     candidature.status = dto.status;
     const saved = await this.candidatureRepository.save(candidature);
 
-    // Auto-create stage when candidature transitions to ACCEPTED
+    // Auto-create stage when candidature transitions to ACCEPTED.
+    // If stage creation fails, roll back the status change so the system
+    // never ends up with an ACCEPTED candidature that has no stage.
     if (
       dto.status === CandidatureStatus.ACCEPTED &&
       previousStatus !== CandidatureStatus.ACCEPTED
@@ -129,8 +131,22 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
           encadrantProEmail: dto.encadrantProEmail,
         });
       } catch (err) {
-        const errorMsg = err instanceof Error ? `${err.name}: ${err.message}` : JSON.stringify(err);
-        console.error('[CandidaturesService] Auto stage creation failed:', errorMsg);
+        // Roll back: revert candidature status to its previous value
+        candidature.status = previousStatus;
+        await this.candidatureRepository.save(candidature);
+
+        const errorMsg =
+          err instanceof Error ? `${err.name}: ${err.message}` : JSON.stringify(err);
+        console.error(
+          '[CandidaturesService] Auto stage creation failed — status rolled back:',
+          errorMsg,
+        );
+
+        throw new BadRequestException(
+          `Candidature accepted but stage creation failed: ${
+            err instanceof Error ? err.message : 'unknown error'
+          }. Status has been reverted.`,
+        );
       }
     }
 
@@ -143,7 +159,10 @@ async FindMyCandidatures(user: User) {
       throw new ForbiddenException('Only students can view their candidatures');
     }
 
-    return await this.candidatureRepository.find({ where: { student: { id: user.id } } });
+    return await this.candidatureRepository.find({ 
+      where: { student: { id: user.id } },
+      relations: ['student', 'subject'],
+    });
 }
 
   /**
@@ -172,7 +191,7 @@ async FindMyCandidatures(user: User) {
         role.name === SYSTEM_ROLES.ADMIN_FORMATION ||
         role.name === SYSTEM_ROLES.SUPER_ADMIN,
     );
-    const IsOwner = candidature.student.id === user.id;
+    const IsOwner = candidature.student?.id === user.id;
 
     // Only the student (owner) or admin can cancel a candidature
     if (IsStudent && !IsOwner) {
@@ -183,8 +202,12 @@ async FindMyCandidatures(user: User) {
       throw new ForbiddenException('Only students and admins can cancel candidatures');
     }
 
-    // Check if there are active stages - if so, cannot cancel
-    if (candidature.stages && candidature.stages.length > 0) {
+    // Block cancellation only if there are stages that are still active/pending.
+    // Completed or cancelled stages do not block cancellation.
+    const activeStages = (candidature.stages ?? []).filter(
+      (s: any) => s.status === 'ACTIVE' || s.status === 'PENDING_ACAD',
+    );
+    if (activeStages.length > 0) {
       throw new BadRequestException(
         'Cannot cancel candidature with active stages. Cancel the stage first.',
       );
@@ -194,10 +217,20 @@ async FindMyCandidatures(user: User) {
     await this.candidatureRepository.remove(candidature);
   }
 
-  async GetAllCandidatures() {
+  /** Returns ALL candidatures regardless of status (admin use). */
+  async getAllCandidatures() {
+    return await this.candidatureRepository.find({
+      relations: ['student', 'subject'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /** Returns only ACCEPTED candidatures — used for stage creation flows. */
+  async getAcceptedCandidatures() {
     return await this.candidatureRepository.find({
       relations: ['student', 'subject'],
       where: { status: CandidatureStatus.ACCEPTED },
+      order: { createdAt: 'DESC' },
     });
   }
   
