@@ -1,18 +1,127 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:17
+
+  db:
+    image: pgvector/pgvector:pg16
     container_name: neurostage_postgres
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: neuro_admin
-      POSTGRES_PASSWORD: neuro_password
-      POSTGRES_DB: neurostage_db
+      POSTGRES_DB: ${DB_NAME:-neurostage_db}
+      POSTGRES_USER: ${DB_USERNAME:-neuro_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-neuro_password}
     ports:
       - "5432:5432"
     volumes:
-      - neurostage_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - neurostage_network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-neuro_admin} -d ${DB_NAME:-neurostage_db}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: neurostage_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:-neuro_admin}
+      DB_PASSWORD: ${DB_PASSWORD:-neuro_password}
+      DB_NAME: ${DB_NAME:-neurostage_db}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      UPLOAD_DIR: /var/neurostage/uploads
+      UPLOAD_BASE_URL: ${UPLOAD_BASE_URL:-http://localhost}
+      AI_SERVICE_URL: http://neurostage_ai:8001
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      BACKEND_URL: ${BACKEND_URL:-http://localhost}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-2525}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@neurostage.local}
+    volumes:
+      - uploads:/var/neurostage/uploads
+    networks:
+      - neurostage_network
+    ports:
+      - "3000:3000"
+
+  ai:
+    build:
+      context: ../Ai_agent_neurostage
+      dockerfile: Dockerfile
+    container_name: neurostage_ai
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-neuro_admin}:${DB_PASSWORD:-neuro_password}@db:5432/${DB_NAME:-neurostage_db}
+      INTERNAL_SECRET: ${INTERNAL_SECRET}
+      NESTJS_INTERNAL_URL: http://neurostage_app:3000
+      UPLOAD_DIR: /var/neurostage/uploads
+      UPLOAD_BASE_URL: ${UPLOAD_BASE_URL:-http://localhost}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
+      GENERATION_MODEL: ${GENERATION_MODEL:-llama3.2}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-768}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ENVIRONMENT: production
+    volumes:
+      - uploads:/var/neurostage/uploads
+    networks:
+      - neurostage_network
+    ports:
+      - "8001:8001"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: neurostage_nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+      - ai
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - uploads:/var/neurostage/uploads:ro
+      - ssl:/etc/ssl:ro
+    networks:
+      - neurostage_network
+
+  frontend:
+    build:
+      context: ../../neurostage-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost/api
+    container_name: neurostage_frontend
+    restart: unless-stopped
+    depends_on:
+      - app
+    networks:
+      - neurostage_network
 
 volumes:
-  neurostage_data:
+  db_data:
+  uploads:
+  ssl:
+
+networks:
+  neurostage_network:
+    name: neurostage_network
