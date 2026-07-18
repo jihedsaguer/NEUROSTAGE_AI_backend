@@ -26,20 +26,11 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Debug test secret
-        run: echo "Test secret length is ${#TEST_SECRET}"
-        env:
-          TEST_SECRET: ${{ secrets.TEST_SECRET }}
-      - name: Deploy to VM via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            cd ~/neurostage
-            docker compose pull app
-            docker compose up -d app
-            docker image prune -f
+      - name: Deploy on VM
+        run: |
+          cd ~/neurostage
+          docker compose pull app
+          docker compose up -d app
+          docker image prune -f
