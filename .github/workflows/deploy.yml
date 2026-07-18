@@ -28,6 +28,10 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      - name: Debug test secret
+        run: echo "Test secret length is ${#TEST_SECRET}"
+        env:
+          TEST_SECRET: ${{ secrets.TEST_SECRET }}
       - name: Deploy to VM via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
