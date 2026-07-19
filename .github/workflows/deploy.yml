@@ -23,6 +23,7 @@ jobs:
           context: .
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/neurostage-backend:latest
+                ${{ secrets.DOCKERHUB_USERNAME }}/neurostage-backend:${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -31,6 +32,7 @@ jobs:
       - name: Deploy on VM
         run: |
           cd ~/neurostage
+          echo "${{ github.sha }}" > .last-deploy-app-sha
           docker compose pull app
           docker compose up -d app
           docker image prune -f
