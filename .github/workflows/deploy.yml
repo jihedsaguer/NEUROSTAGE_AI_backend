@@ -38,14 +38,15 @@ jobs:
           docker compose up -d app
       - name: Wait and verify health
         run: |
+         cd ~/neurostage
           echo "Waiting for backend to become healthy..."
           for i in {1..15}; do
-            if curl -sf http://localhost/api/auth/dev/verify/healthcheck@test.com > /dev/null 2>&1 || \
-               curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -qE "200|301|302|401|404"; then
-              echo "Backend is responding."
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/auth/login -X POST -H "Content-Type: application/json" -d '{"email":"healthcheck@test.com","password":"wrong"}')
+            if [ "$CODE" = "400" ] || [ "$CODE" = "401" ] || [ "$CODE" = "500" ]; then
+              echo "Backend is responding (HTTP $CODE)."
               exit 0
             fi
-            echo "Attempt $i/15 - not ready yet, waiting 3s..."
+            echo "Attempt $i/15 - not ready yet (got HTTP $CODE), waiting 3s..."
             sleep 3
           done
           echo "Backend failed health check after 45s"
