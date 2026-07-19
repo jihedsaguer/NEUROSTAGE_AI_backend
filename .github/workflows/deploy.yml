@@ -22,7 +22,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/neurostage-backend:latest
+          tags : |
+           ${{ secrets.DOCKERHUB_USERNAME }}/neurostage-backend:latest
                 ${{ secrets.DOCKERHUB_USERNAME }}/neurostage-backend:${{ github.sha }}
 
   deploy:
