@@ -56,6 +56,13 @@ services:
       - neurostage_network
     ports:
       - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
 
   ai:
     build:
