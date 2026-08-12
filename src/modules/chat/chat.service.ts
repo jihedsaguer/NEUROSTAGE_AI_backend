@@ -97,7 +97,9 @@ export class ChatService {
       `Chat room created for stage "${roomName}".`,
     );
 
-    this.logger.log(`Chat room ${savedRoom.id} created for stage ${fullStage.id}`);
+    this.logger.log(
+      `Chat room ${savedRoom.id} created for stage ${fullStage.id}`,
+    );
     return savedRoom;
   }
 
@@ -105,7 +107,10 @@ export class ChatService {
    * Called when encadrantAcad is assigned to a stage after initial creation.
    * Adds them to the existing stage chat room.
    */
-  async addEncadrantAcadToStageRoom(stageId: string, userId: string): Promise<void> {
+  async addEncadrantAcadToStageRoom(
+    stageId: string,
+    userId: string,
+  ): Promise<void> {
     const room = await this.roomRepository.findOne({ where: { stageId } });
     if (!room) return; // room may not exist yet if stage was just created
 
@@ -115,12 +120,18 @@ export class ChatService {
     if (alreadyIn) return;
 
     await this.addParticipantsBulk(room.id, [userId]);
-    await this.postSystemMessage(room.id, `Academic supervisor joined the chat.`);
+    await this.postSystemMessage(
+      room.id,
+      `Academic supervisor joined the chat.`,
+    );
   }
 
   // ─── Admin: create custom room ───────────────────────────────────────────────
 
-  async createCustomRoom(dto: CreateRoomDto, admin: User): Promise<RoomResponseDto> {
+  async createCustomRoom(
+    dto: CreateRoomDto,
+    admin: User,
+  ): Promise<RoomResponseDto> {
     const room = this.roomRepository.create({
       name: dto.name,
       description: dto.description ?? null,
@@ -134,14 +145,23 @@ export class ChatService {
     // Admin who created the room is automatically a participant
     await this.addParticipantsBulk(saved.id, [admin.id]);
 
-    await this.auditService.log('CREATED_CHAT_ROOM', admin.id, 'ChatRoom', saved.id);
+    await this.auditService.log(
+      'CREATED_CHAT_ROOM',
+      admin.id,
+      'ChatRoom',
+      saved.id,
+    );
 
     return this.loadRoomResponse(saved.id);
   }
 
   // ─── Admin: add participant to any room ──────────────────────────────────────
 
-  async addParticipant(roomId: string, userId: string, requestingUser: User): Promise<RoomResponseDto> {
+  async addParticipant(
+    roomId: string,
+    userId: string,
+    requestingUser: User,
+  ): Promise<RoomResponseDto> {
     this.assertAdmin(requestingUser);
 
     const room = await this.findRoomOrFail(roomId);
@@ -154,7 +174,10 @@ export class ChatService {
     if (existing) throw new ConflictException('User is already a participant');
 
     await this.addParticipantsBulk(roomId, [userId]);
-    await this.postSystemMessage(roomId, `${user.firstName} ${user.lastName} was added to the chat.`);
+    await this.postSystemMessage(
+      roomId,
+      `${user.firstName} ${user.lastName} was added to the chat.`,
+    );
 
     return this.loadRoomResponse(roomId);
   }
@@ -225,7 +248,9 @@ export class ChatService {
 
     // Cursor-based pagination: load messages older than the given message ID
     if (before) {
-      const pivot = await this.messageRepository.findOne({ where: { id: before } });
+      const pivot = await this.messageRepository.findOne({
+        where: { id: before },
+      });
       if (pivot) {
         query = query.andWhere('msg.createdAt < :pivotDate', {
           pivotDate: pivot.createdAt,
@@ -266,9 +291,7 @@ export class ChatService {
     // Audit every message send — non-blocking
     this.auditService
       .log('SENT_CHAT_MESSAGE', sender.id, 'ChatMessage', saved.id)
-      .catch((err) =>
-        this.logger.error('Audit log failed for message', err),
-      );
+      .catch((err) => this.logger.error('Audit log failed for message', err));
 
     // Reload with sender relation for the response
     const full = await this.messageRepository.findOne({
@@ -301,7 +324,11 @@ export class ChatService {
 
   // ─── Mark messages as read ───────────────────────────────────────────────────
 
-  async markAsRead(roomId: string, messageId: string, userId: string): Promise<void> {
+  async markAsRead(
+    roomId: string,
+    messageId: string,
+    userId: string,
+  ): Promise<void> {
     const participant = await this.participantRepository.findOne({
       where: { roomId, userId },
     });
@@ -333,14 +360,24 @@ export class ChatService {
 
   // ─── Private helpers ─────────────────────────────────────────────────────────
 
-  private async addParticipantsBulk(roomId: string, userIds: string[]): Promise<void> {
+  private async addParticipantsBulk(
+    roomId: string,
+    userIds: string[],
+  ): Promise<void> {
     const participants = userIds.map((userId) =>
-      this.participantRepository.create({ roomId, userId, lastReadMessageId: null }),
+      this.participantRepository.create({
+        roomId,
+        userId,
+        lastReadMessageId: null,
+      }),
     );
     await this.participantRepository.save(participants);
   }
 
-  private async postSystemMessage(roomId: string, content: string): Promise<void> {
+  private async postSystemMessage(
+    roomId: string,
+    content: string,
+  ): Promise<void> {
     const msg = this.messageRepository.create({
       roomId,
       senderId: null,
@@ -351,12 +388,17 @@ export class ChatService {
     await this.messageRepository.save(msg);
   }
 
-  private async assertParticipant(roomId: string, userId: string): Promise<void> {
+  private async assertParticipant(
+    roomId: string,
+    userId: string,
+  ): Promise<void> {
     const participant = await this.participantRepository.findOne({
       where: { roomId, userId },
     });
     if (!participant) {
-      throw new ForbiddenException('You are not a participant of this chat room');
+      throw new ForbiddenException(
+        'You are not a participant of this chat room',
+      );
     }
   }
 

@@ -26,8 +26,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-    async validate(payload: JwtPayload) {
-
+  async validate(payload: JwtPayload) {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
       relations: ['roles', 'roles.permissions'],
@@ -37,8 +36,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
-    const permissions = user.roles
-      .flatMap(r => r.permissions?.map(p => p.action) ?? []);
+    const permissions = user.roles.flatMap(
+      (r) => r.permissions?.map((p) => p.action) ?? [],
+    );
     const uniquePermissions = Array.from(new Set(permissions));
 
     // Attach derived fields so controllers and the future WebSocket gateway

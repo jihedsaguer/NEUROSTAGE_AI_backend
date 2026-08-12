@@ -23,7 +23,10 @@ export class AutoSeedService implements OnModuleInit {
     try {
       await this.seedDefaultData();
     } catch (error) {
-      this.logger.error(`Auto-seed failed: ${(error as Error).message}`, (error as Error).stack);
+      this.logger.error(
+        `Auto-seed failed: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
     }
   }
 
@@ -69,6 +72,8 @@ export class AutoSeedService implements OnModuleInit {
 
     await this.userRepository.save(admin);
     this.logger.log(`✅ Created default admin user: ${adminEmail}`);
-    this.logger.warn(`⚠️  Default password: ${adminPassword} — CHANGE THIS IMMEDIATELY!`);
+    this.logger.warn(
+      `⚠️  Default password: ${adminPassword} — CHANGE THIS IMMEDIATELY!`,
+    );
   }
 }

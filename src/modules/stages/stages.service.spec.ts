@@ -3,7 +3,10 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StagesService } from './stages.service';
 import { Stage, StageStatus } from './entities/stage.entity';
-import { Candidature, CandidatureStatus } from '../candidatures/entities/candidature.entity';
+import {
+  Candidature,
+  CandidatureStatus,
+} from '../candidatures/entities/candidature.entity';
 import { User } from '../users/entities/user.entity';
 import { Subject } from '../subjects/entities/subject.entity';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
@@ -110,12 +113,14 @@ describe('StagesService', () => {
       updatedAt: new Date(),
     } as unknown as Stage;
 
-    candidatureRepository.findOne!.mockResolvedValue(candidature as Candidature);
+    candidatureRepository.findOne!.mockResolvedValue(
+      candidature as Candidature,
+    );
     stageRepository.findOne!.mockImplementation(({ where }) => {
-      if ((where as any).candidatureId) {
+      if (where.candidatureId) {
         return Promise.resolve(null);
       }
-      if ((where as any).id) {
+      if (where.id) {
         return Promise.resolve(savedStage);
       }
       return Promise.resolve(null);

@@ -47,7 +47,11 @@ export class RagService {
       response = await fetchFn(url, {
         method: 'POST',
         headers: this.internalHeaders,
-        body: JSON.stringify({ filePath: normalizedPath, documentName, documentType }),
+        body: JSON.stringify({
+          filePath: normalizedPath,
+          documentName,
+          documentType,
+        }),
         // 2-minute timeout for large documents
         signal: AbortSignal.timeout ? AbortSignal.timeout(120000) : undefined,
       });
@@ -104,9 +108,7 @@ export class RagService {
       if (code === 'ECONNREFUSED' || code === 'ENOTFOUND') {
         throw new ServiceUnavailableException('AI service is not available');
       }
-      this.logger.error(
-        `RAG query network error: ${(err as Error).message}`,
-      );
+      this.logger.error(`RAG query network error: ${(err as Error).message}`);
       throw new BadGatewayException(
         `RAG query failed: ${(err as Error).message}`,
       );

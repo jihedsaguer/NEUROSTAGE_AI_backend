@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Role } from './entities/role.entity';
@@ -33,7 +38,11 @@ export class RolesService {
       }
     }
 
-    const role = this.rolesRepository.create({ name, description, permissions });
+    const role = this.rolesRepository.create({
+      name,
+      description,
+      permissions,
+    });
     return this.rolesRepository.save(role);
   }
 
@@ -42,7 +51,10 @@ export class RolesService {
   }
 
   async findOne(id: string): Promise<Role> {
-    const role = await this.rolesRepository.findOne({ where: { id }, relations: ['permissions'] });
+    const role = await this.rolesRepository.findOne({
+      where: { id },
+      relations: ['permissions'],
+    });
     if (!role) {
       throw new NotFoundException(`Role with id ${id} not found`);
     }
@@ -74,9 +86,8 @@ export class RolesService {
   }
 
   async addPermissions(roleId: string, permissionIds: string[]): Promise<Role> {
-    
     const role = await this.findOne(roleId);
-    if(!role) {
+    if (!role) {
       throw new NotFoundException(`Role with id ${roleId} not found`);
     }
     const permissions = await this.permissionsRepository.find({
@@ -85,10 +96,12 @@ export class RolesService {
     if (permissions.length !== permissionIds.length) {
       throw new BadRequestException('One or more permissions not found');
     }
-    const existingIds = role.permissions.map(p => p.id);
-    
-    const newPermissions = permissions.filter(p => !existingIds.includes(p.id));
+    const existingIds = role.permissions.map((p) => p.id);
+
+    const newPermissions = permissions.filter(
+      (p) => !existingIds.includes(p.id),
+    );
     role.permissions = [...role.permissions, ...newPermissions];
     return this.rolesRepository.save(role);
   }
-  }  
+}

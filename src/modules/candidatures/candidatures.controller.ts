@@ -1,14 +1,14 @@
 import {
-    Controller,
-    Get,
-    Post,
-    Delete,
-    Patch,
-    Body,
-    Param,
-    UseGuards,
-    Request,
-    ParseUUIDPipe,
+  Controller,
+  Get,
+  Post,
+  Delete,
+  Patch,
+  Body,
+  Param,
+  UseGuards,
+  Request,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { CandidaturesService } from './candidatures.service';
 import { CreateCandidatureDto, UpdateCandidatureDto } from './dto';
@@ -19,54 +19,61 @@ import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 @Controller('candidatures')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CandidaturesController {
-    constructor(private readonly candidaturesService: CandidaturesService) { }
-    @Post()
-    @Roles(SYSTEM_ROLES.STUDENT)
-    async createCandidature(
-        @Body() createCandidatureDto: CreateCandidatureDto,
-        @Request() req,
-    ) {
-        return await this.candidaturesService.createCandidature(
-            createCandidatureDto,
-            req.user,
-        );
+  constructor(private readonly candidaturesService: CandidaturesService) {}
+  @Post()
+  @Roles(SYSTEM_ROLES.STUDENT)
+  async createCandidature(
+    @Body() createCandidatureDto: CreateCandidatureDto,
+    @Request() req,
+  ) {
+    return await this.candidaturesService.createCandidature(
+      createCandidatureDto,
+      req.user,
+    );
+  }
+  @Get('subject/:subjectId')
+  async getBySubjectId(
+    @Param('subjectId', ParseUUIDPipe) subjectId: string,
+    @Request() req,
+  ) {
+    return await this.candidaturesService.getBySubjectId(subjectId, req.user);
+  }
 
-    }
-    @Get('subject/:subjectId')
-    async getBySubjectId(
-        @Param('subjectId', ParseUUIDPipe) subjectId: string,
-        @Request() req,
-    ) {
-        return await this.candidaturesService.getBySubjectId(subjectId, req.user);
-    }
+  @Patch(':id/status')
+  @Roles(
+    SYSTEM_ROLES.ADMIN_FORMATION,
+    SYSTEM_ROLES.SUPER_ADMIN,
+    SYSTEM_ROLES.ENCADRANT_PRO,
+  )
+  async updateStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateCandidatureDto: UpdateCandidatureDto,
+    @Request() req,
+  ) {
+    return await this.candidaturesService.updateStatus(
+      id,
+      updateCandidatureDto,
+      req.user,
+    );
+  }
 
-    @Patch(':id/status')
-    @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ENCADRANT_PRO)
-    async updateStatus(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Body() updateCandidatureDto: UpdateCandidatureDto,
-        @Request() req,
-    ) {
-        return await this.candidaturesService.updateStatus(id, updateCandidatureDto, req.user);
-    }
+  @Get('my-candidatures')
+  @Roles(SYSTEM_ROLES.STUDENT)
+  async findMyCandidatures(@Request() req) {
+    return await this.candidaturesService.FindMyCandidatures(req.user);
+  }
 
-    @Get('my-candidatures')
-    @Roles(SYSTEM_ROLES.STUDENT)
-    async findMyCandidatures(@Request() req) {
-        return await this.candidaturesService.FindMyCandidatures(req.user);
-    }
-
-    @Delete(':id/cancel')
-    async cancelCandidature(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Request() req,
-    ) {
-        await this.candidaturesService.cancelCandidature(id, req.user);
-        return { message: 'Candidature cancelled successfully' };
-    }
-    @Get()
-    @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN)
-    async getAllCandidatures() {
-        return await this.candidaturesService.getAllCandidatures();
-    }
+  @Delete(':id/cancel')
+  async cancelCandidature(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Request() req,
+  ) {
+    await this.candidaturesService.cancelCandidature(id, req.user);
+    return { message: 'Candidature cancelled successfully' };
+  }
+  @Get()
+  @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN)
+  async getAllCandidatures() {
+    return await this.candidaturesService.getAllCandidatures();
+  }
 }

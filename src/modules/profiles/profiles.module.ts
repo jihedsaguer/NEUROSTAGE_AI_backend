@@ -7,10 +7,7 @@ import { InternalProfilesController } from './internal.controller';
 import { ProfilesService } from './profiles.service';
 import { StudentProfile } from './entities/profiles.entity';
 import { StudentDocument } from './entities/student-document.entity';
-import {
-  StorageService,
-  createMulterOptions,
-} from './storage/storage.service';
+import { StorageService, createMulterOptions } from './storage/storage.service';
 
 @Module({
   imports: [

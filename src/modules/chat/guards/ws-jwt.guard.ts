@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, Logger } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -65,7 +70,7 @@ export class WsJwtGuard implements CanActivate {
     }
 
     // Priority 2: Authorization header in handshake
-    const authHeader = client.handshake?.headers?.authorization as string | undefined;
+    const authHeader = client.handshake?.headers?.authorization;
     if (authHeader?.startsWith('Bearer ')) {
       return authHeader.slice(7);
     }

@@ -26,7 +26,9 @@ describe('AuditService', () => {
     }).compile();
 
     service = module.get<AuditService>(AuditService);
-    auditLogRepository = module.get<Repository<AuditLog>>(getRepositoryToken(AuditLog));
+    auditLogRepository = module.get<Repository<AuditLog>>(
+      getRepositoryToken(AuditLog),
+    );
   });
 
   it('should be defined', () => {
@@ -46,7 +48,9 @@ describe('AuditService', () => {
       createdAt: new Date(),
     };
 
-    jest.spyOn(auditLogRepository, 'create').mockReturnValue(mockAuditLog as any);
+    jest
+      .spyOn(auditLogRepository, 'create')
+      .mockReturnValue(mockAuditLog as any);
     jest.spyOn(auditLogRepository, 'save').mockResolvedValue(mockAuditLog);
 
     const result = await service.log(
@@ -85,7 +89,9 @@ describe('AuditService', () => {
       },
     ];
 
-    jest.spyOn(auditLogRepository, 'find').mockResolvedValue(mockAuditLogs as any);
+    jest
+      .spyOn(auditLogRepository, 'find')
+      .mockResolvedValue(mockAuditLogs as any);
 
     const result = await service.getAuditTrail('Subject', 'subject-456');
 

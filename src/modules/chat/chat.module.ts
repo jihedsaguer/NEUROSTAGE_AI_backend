@@ -15,7 +15,13 @@ import { AuditModule } from '../../common/audit/audit.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ChatRoom, ChatParticipant, ChatMessage, Stage, User]),
+    TypeOrmModule.forFeature([
+      ChatRoom,
+      ChatParticipant,
+      ChatMessage,
+      Stage,
+      User,
+    ]),
     // JwtModule needed by WsJwtGuard to verify tokens on WebSocket connections
     JwtModule.registerAsync({
       imports: [ConfigModule],

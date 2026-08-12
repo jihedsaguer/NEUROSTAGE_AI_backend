@@ -11,7 +11,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Stage, StageStatus } from './entities/stage.entity';
-import { Candidature, CandidatureStatus } from '../candidatures/entities/candidature.entity';
+import {
+  Candidature,
+  CandidatureStatus,
+} from '../candidatures/entities/candidature.entity';
 import { User } from '../users/entities/user.entity';
 import { Subject } from '../subjects/entities/subject.entity';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
@@ -50,7 +53,12 @@ export class StagesService {
 
   async createStage(dto: CreateStageDto): Promise<StageResponseDto> {
     // For auto-creation (only candidatureId provided, no encadrant info)
-    if (dto.candidatureId && !dto.encadrantProId && !dto.encadrantProEmail && !dto.studentEmail) {
+    if (
+      dto.candidatureId &&
+      !dto.encadrantProId &&
+      !dto.encadrantProEmail &&
+      !dto.studentEmail
+    ) {
       return this.autoCreateStageFromCandidature(dto.candidatureId, dto);
     }
 
@@ -60,7 +68,12 @@ export class StagesService {
     if (dto.candidatureId) {
       candidature = await this.candidatureRepository.findOne({
         where: { id: dto.candidatureId },
-        relations: ['student', 'subject', 'subject.createdBy', 'subject.createdBy.roles'],
+        relations: [
+          'student',
+          'subject',
+          'subject.createdBy',
+          'subject.createdBy.roles',
+        ],
       });
 
       if (!candidature) {
@@ -74,7 +87,9 @@ export class StagesService {
       });
 
       if (!student) {
-        throw new NotFoundException(`Student with email ${dto.studentEmail} not found`);
+        throw new NotFoundException(
+          `Student with email ${dto.studentEmail} not found`,
+        );
       }
 
       let subject;
@@ -83,7 +98,9 @@ export class StagesService {
       } else if (dto.subjectTitle) {
         subject = await this.findSubjectByTitle(dto.subjectTitle);
       } else {
-        throw new BadRequestException('Either subjectId or subjectTitle must be provided');
+        throw new BadRequestException(
+          'Either subjectId or subjectTitle must be provided',
+        );
       }
 
       candidature = await this.candidatureRepository.findOne({
@@ -91,7 +108,12 @@ export class StagesService {
           student: { id: student.id },
           subject: { id: subject.id },
         },
-        relations: ['student', 'subject', 'subject.createdBy', 'subject.createdBy.roles'],
+        relations: [
+          'student',
+          'subject',
+          'subject.createdBy',
+          'subject.createdBy.roles',
+        ],
       });
 
       if (!candidature) {
@@ -115,7 +137,9 @@ export class StagesService {
       where: { candidatureId: candidature.id },
     });
     if (existing) {
-      throw new ConflictException('A stage already exists for this candidature');
+      throw new ConflictException(
+        'A stage already exists for this candidature',
+      );
     }
 
     // Resolve encadrant pro: UUID -> email -> subject creator
@@ -123,7 +147,9 @@ export class StagesService {
     if (dto.encadrantProId) {
       encadrantPro = await this.resolveEncadrantPro(dto.encadrantProId);
     } else if (dto.encadrantProEmail) {
-      encadrantPro = await this.resolveEncadrantProByEmail(dto.encadrantProEmail);
+      encadrantPro = await this.resolveEncadrantProByEmail(
+        dto.encadrantProEmail,
+      );
     } else {
       const subjectCreator = candidature.subject?.createdBy;
       if (!subjectCreator || !this.isValidAutoStageSupervisor(subjectCreator)) {
@@ -139,7 +165,9 @@ export class StagesService {
     if (dto.encadrantAcadId) {
       encadrantAcad = await this.resolveEncadrantAcad(dto.encadrantAcadId);
     } else if (dto.encadrantAcadEmail) {
-      encadrantAcad = await this.resolveEncadrantAcadByEmail(dto.encadrantAcadEmail);
+      encadrantAcad = await this.resolveEncadrantAcadByEmail(
+        dto.encadrantAcadEmail,
+      );
     }
 
     const stage = this.stageRepository.create({
@@ -164,9 +192,14 @@ export class StagesService {
     // Auto-create the chat room for this stage (non-blocking — failure must not
     // roll back the stage creation itself).
     const fullSaved = await this.loadFullStage(saved.id);
-    this.chatService.createRoomForStage(fullSaved).catch((err) =>
-      this.logger.error(`Failed to create chat room for stage ${saved.id}`, err),
-    );
+    this.chatService
+      .createRoomForStage(fullSaved)
+      .catch((err) =>
+        this.logger.error(
+          `Failed to create chat room for stage ${saved.id}`,
+          err,
+        ),
+      );
 
     return this.mapToResponse(fullSaved);
   }
@@ -182,7 +215,12 @@ export class StagesService {
   ): Promise<StageResponseDto> {
     const candidature = await this.candidatureRepository.findOne({
       where: { id: candidatureId },
-      relations: ['student', 'subject', 'subject.createdBy', 'subject.createdBy.roles'],
+      relations: [
+        'student',
+        'subject',
+        'subject.createdBy',
+        'subject.createdBy.roles',
+      ],
     });
 
     if (!candidature) {
@@ -199,7 +237,9 @@ export class StagesService {
       where: { candidatureId: candidature.id },
     });
     if (existing) {
-      throw new ConflictException('A stage already exists for this candidature');
+      throw new ConflictException(
+        'A stage already exists for this candidature',
+      );
     }
 
     // For auto-creation, use subject creator as encadrant pro (must have the role)
@@ -235,20 +275,33 @@ export class StagesService {
     const fullSaved = await this.loadFullStage(saved.id);
 
     // Auto-create the chat room (non-blocking)
-    this.chatService.createRoomForStage(fullSaved).catch((err) =>
-      this.logger.error(`Failed to create chat room for stage ${saved.id}`, err),
-    );
+    this.chatService
+      .createRoomForStage(fullSaved)
+      .catch((err) =>
+        this.logger.error(
+          `Failed to create chat room for stage ${saved.id}`,
+          err,
+        ),
+      );
 
     return this.mapToResponse(fullSaved);
   }
 
   // ─── Assign / reassign encadrant pro (admin only) ────────────────────────────
 
-  async assignEncadrantPro(stageId: string, dto: AssignProDto): Promise<StageResponseDto> {
+  async assignEncadrantPro(
+    stageId: string,
+    dto: AssignProDto,
+  ): Promise<StageResponseDto> {
     const stage = await this.loadFullStage(stageId);
 
-    if (stage.status === StageStatus.COMPLETED || stage.status === StageStatus.CANCELLED) {
-      throw new BadRequestException('Cannot modify a completed or cancelled stage');
+    if (
+      stage.status === StageStatus.COMPLETED ||
+      stage.status === StageStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'Cannot modify a completed or cancelled stage',
+      );
     }
 
     const encadrantPro = await this.resolveEncadrantPro(dto.encadrantProId);
@@ -261,11 +314,19 @@ export class StagesService {
 
   // ─── Assign / reassign encadrant acad (admin only) ───────────────────────────
 
-  async assignEncadrantAcad(stageId: string, dto: AssignAcadDto): Promise<StageResponseDto> {
+  async assignEncadrantAcad(
+    stageId: string,
+    dto: AssignAcadDto,
+  ): Promise<StageResponseDto> {
     const stage = await this.loadFullStage(stageId);
 
-    if (stage.status === StageStatus.COMPLETED || stage.status === StageStatus.CANCELLED) {
-      throw new BadRequestException('Cannot modify a completed or cancelled stage');
+    if (
+      stage.status === StageStatus.COMPLETED ||
+      stage.status === StageStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'Cannot modify a completed or cancelled stage',
+      );
     }
 
     const encadrantAcad = await this.resolveEncadrantAcad(dto.encadrantAcadId);
@@ -279,19 +340,24 @@ export class StagesService {
     const saved = await this.stageRepository.save(stage);
 
     // Add the newly assigned academic supervisor to the stage chat room (non-blocking)
-    this.chatService.addEncadrantAcadToStageRoom(stageId, encadrantAcad.id).catch((err) =>
-      this.logger.error(
-        `Failed to add encadrantAcad ${encadrantAcad.id} to chat room for stage ${stageId}`,
-        err,
-      ),
-    );
+    this.chatService
+      .addEncadrantAcadToStageRoom(stageId, encadrantAcad.id)
+      .catch((err) =>
+        this.logger.error(
+          `Failed to add encadrantAcad ${encadrantAcad.id} to chat room for stage ${stageId}`,
+          err,
+        ),
+      );
 
     return this.mapToResponse(await this.loadFullStage(saved.id));
   }
 
   // ─── Update stage metadata (admin only) ─────────────────────────────────────
 
-  async updateStage(stageId: string, dto: UpdateStageDto): Promise<StageResponseDto> {
+  async updateStage(
+    stageId: string,
+    dto: UpdateStageDto,
+  ): Promise<StageResponseDto> {
     const stage = await this.loadFullStage(stageId);
 
     if (dto.status !== undefined) stage.status = dto.status;
@@ -357,13 +423,23 @@ export class StagesService {
   async getStageById(stageId: string, user: User): Promise<StageResponseDto> {
     const stage = await this.loadFullStage(stageId);
 
-    if (this.hasAnyRole(user, [SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION])) {
+    if (
+      this.hasAnyRole(user, [
+        SYSTEM_ROLES.SUPER_ADMIN,
+        SYSTEM_ROLES.ADMIN_FORMATION,
+      ])
+    ) {
       return this.mapToResponse(stage);
     }
 
-    const canAccessAsStudent = this.hasRole(user, SYSTEM_ROLES.STUDENT) && stage.studentId === user.id;
-    const canAccessAsPro = this.hasRole(user, SYSTEM_ROLES.ENCADRANT_PRO) && stage.encadrantProId === user.id;
-    const canAccessAsAcad = this.hasRole(user, SYSTEM_ROLES.ENCADRANT_ACADEMIQUE) && stage.encadrantAcadId === user.id;
+    const canAccessAsStudent =
+      this.hasRole(user, SYSTEM_ROLES.STUDENT) && stage.studentId === user.id;
+    const canAccessAsPro =
+      this.hasRole(user, SYSTEM_ROLES.ENCADRANT_PRO) &&
+      stage.encadrantProId === user.id;
+    const canAccessAsAcad =
+      this.hasRole(user, SYSTEM_ROLES.ENCADRANT_ACADEMIQUE) &&
+      stage.encadrantAcadId === user.id;
 
     if (canAccessAsStudent || canAccessAsPro || canAccessAsAcad) {
       return this.mapToResponse(stage);
@@ -407,7 +483,13 @@ export class StagesService {
   private async loadFullStage(stageId: string): Promise<Stage> {
     const stage = await this.stageRepository.findOne({
       where: { id: stageId },
-      relations: ['subject', 'student', 'encadrantPro', 'encadrantAcad', 'candidature'],
+      relations: [
+        'subject',
+        'student',
+        'encadrantPro',
+        'encadrantAcad',
+        'candidature',
+      ],
     });
     if (!stage) throw new NotFoundException(`Stage ${stageId} not found`);
     return stage;
@@ -456,7 +538,8 @@ export class StagesService {
       where: { email },
       relations: ['roles'],
     });
-    if (!user) throw new NotFoundException(`User with email ${email} not found`);
+    if (!user)
+      throw new NotFoundException(`User with email ${email} not found`);
 
     const isPro = user.roles.some((r) => r.name === SYSTEM_ROLES.ENCADRANT_PRO);
     if (!isPro) {
@@ -474,7 +557,9 @@ export class StagesService {
     });
     if (!user) throw new NotFoundException(`User ${userId} not found`);
 
-    const isAcad = user.roles.some((r) => r.name === SYSTEM_ROLES.ENCADRANT_ACADEMIQUE);
+    const isAcad = user.roles.some(
+      (r) => r.name === SYSTEM_ROLES.ENCADRANT_ACADEMIQUE,
+    );
     if (!isAcad) {
       throw new BadRequestException(
         `User ${user.email} does not have the encadrant_academique role`,
@@ -488,9 +573,12 @@ export class StagesService {
       where: { email },
       relations: ['roles'],
     });
-    if (!user) throw new NotFoundException(`User with email ${email} not found`);
+    if (!user)
+      throw new NotFoundException(`User with email ${email} not found`);
 
-    const isAcad = user.roles.some((r) => r.name === SYSTEM_ROLES.ENCADRANT_ACADEMIQUE);
+    const isAcad = user.roles.some(
+      (r) => r.name === SYSTEM_ROLES.ENCADRANT_ACADEMIQUE,
+    );
     if (!isAcad) {
       throw new BadRequestException(
         `User ${email} does not have the encadrant_academique role`,

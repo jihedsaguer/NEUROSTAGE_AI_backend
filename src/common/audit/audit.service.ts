@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import {
+  Repository,
+  Between,
+  Like,
+  MoreThanOrEqual,
+  LessThanOrEqual,
+} from 'typeorm';
 import { AuditLog } from './audit.entity';
 import { LoggerService } from '../logger/logger.service';
 
@@ -44,10 +50,13 @@ export class AuditService {
       });
 
       const saved = await this.auditLogRepository.save(auditLog);
-      this.logger.debug(`Audit logged: ${action} on ${resourceType} (${resourceId})`, {
-        userId,
-        actionId: saved.id,
-      });
+      this.logger.debug(
+        `Audit logged: ${action} on ${resourceType} (${resourceId})`,
+        {
+          userId,
+          actionId: saved.id,
+        },
+      );
 
       return saved;
     } catch (error) {
@@ -79,7 +88,10 @@ export class AuditService {
   /**
    * Get audit logs for a specific user
    */
-  async getUserAuditLog(userId: string, limit: number = 100): Promise<AuditLog[]> {
+  async getUserAuditLog(
+    userId: string,
+    limit: number = 100,
+  ): Promise<AuditLog[]> {
     return this.auditLogRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
@@ -90,7 +102,10 @@ export class AuditService {
   /**
    * Get audit logs for a specific action
    */
-  async getActionAuditLog(action: string, limit: number = 100): Promise<AuditLog[]> {
+  async getActionAuditLog(
+    action: string,
+    limit: number = 100,
+  ): Promise<AuditLog[]> {
     return this.auditLogRepository.find({
       where: { action },
       order: { createdAt: 'DESC' },
@@ -129,7 +144,9 @@ export class AuditService {
     }
 
     if (params.resourceType) {
-      qb.andWhere('log.resourceType = :resourceType', { resourceType: params.resourceType });
+      qb.andWhere('log.resourceType = :resourceType', {
+        resourceType: params.resourceType,
+      });
     }
 
     if (params.userId) {

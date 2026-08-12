@@ -41,7 +41,9 @@ async function bootstrap() {
     });
     Logger.log(`Serving static uploads from ${absolute} at /uploads`);
   } catch (e) {
-    Logger.warn(`Failed to enable static uploads serving: ${(e as Error).message}`);
+    Logger.warn(
+      `Failed to enable static uploads serving: ${(e as Error).message}`,
+    );
   }
 
   const port = process.env.PORT ?? 3000;
@@ -50,4 +52,3 @@ async function bootstrap() {
 }
 
 bootstrap();
-

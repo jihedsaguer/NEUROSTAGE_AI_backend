@@ -11,7 +11,7 @@ export class RequestLoggerMiddleware implements NestMiddleware {
     // Generate unique correlation ID for this request
     const correlationId = uuidv4();
     (req as any).correlationId = correlationId;
-    
+
     // Set correlation ID in logger
     this.logger.setCorrelationId(correlationId);
 
@@ -30,9 +30,12 @@ export class RequestLoggerMiddleware implements NestMiddleware {
       const duration = Date.now() - start;
       const { statusCode } = res;
 
-      this.logger.log(`[OUTGOING] ${method} ${url} ${statusCode} ${duration}ms`, {
-        userId: (req as any).user?.id || 'anonymous',
-      });
+      this.logger.log(
+        `[OUTGOING] ${method} ${url} ${statusCode} ${duration}ms`,
+        {
+          userId: (req as any).user?.id || 'anonymous',
+        },
+      );
     });
 
     next();

@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -24,7 +29,9 @@ export class UsersService {
     const { email, password, roleIds, ...userData } = createUserDto;
 
     // Check if user already exists
-    const existingUser = await this.usersRepository.findOne({ where: { email } });
+    const existingUser = await this.usersRepository.findOne({
+      where: { email },
+    });
     if (existingUser) {
       throw new ConflictException(`User with email ${email} already exists`);
     }
@@ -107,7 +114,10 @@ export class UsersService {
     return { message: `User ${id} successfully deleted` };
   }
 
-  async validatePassword(password: string, hashedPassword: string): Promise<boolean> {
+  async validatePassword(
+    password: string,
+    hashedPassword: string,
+  ): Promise<boolean> {
     return bcrypt.compare(password, hashedPassword);
   }
 
@@ -116,7 +126,13 @@ export class UsersService {
    * Intentionally lightweight: no passwords, no permissions, no full role objects.
    */
   async getChatParticipants(): Promise<
-    { id: string; firstName: string; lastName: string; email: string; role: string | null }[]
+    {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      role: string | null;
+    }[]
   > {
     const users = await this.usersRepository.find({
       where: { isActive: true },

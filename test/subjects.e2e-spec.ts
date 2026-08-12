@@ -50,10 +50,13 @@ describe('Subjects Module (e2e)', () => {
         .expect(200)
         .expect((res) => {
           expect(res.body).toHaveProperty('data');
-          expect(res.body.data.every((s: any) =>
-            s.title.toLowerCase().includes('react') ||
-            s.description.toLowerCase().includes('react'),
-          )).toBe(true);
+          expect(
+            res.body.data.every(
+              (s: any) =>
+                s.title.toLowerCase().includes('react') ||
+                s.description.toLowerCase().includes('react'),
+            ),
+          ).toBe(true);
         });
     });
 
@@ -98,9 +101,9 @@ describe('Subjects Module (e2e)', () => {
         .expect((res) => {
           if (res.body.data.length > 1) {
             for (let i = 0; i < res.body.data.length - 1; i++) {
-              expect(
-                res.body.data[i].title <= res.body.data[i + 1].title,
-              ).toBe(true);
+              expect(res.body.data[i].title <= res.body.data[i + 1].title).toBe(
+                true,
+              );
             }
           }
         });
@@ -267,7 +270,7 @@ describe('Subjects Module (e2e)', () => {
   });
 
   describe('GET /subjects/my - Get My Subjects', () => {
-    it('should return user\'s own subjects with pagination', () => {
+    it("should return user's own subjects with pagination", () => {
       return request(app.getHttpServer())
         .get('/subjects/my')
         .query({ limit: 10, offset: 0 })

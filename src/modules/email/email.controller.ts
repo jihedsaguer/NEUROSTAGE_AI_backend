@@ -1,8 +1,17 @@
-
-import { Controller, Post, Get, Body, Query, Inject, forwardRef, Res, BadRequestException } from "@nestjs/common";
-import { EmailService } from "./email.service";
-import { AuthService } from "../auth/auth.service";
-import { VerifyEmailDto } from "./dto/verify-email.dto";
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Query,
+  Inject,
+  forwardRef,
+  Res,
+  BadRequestException,
+} from '@nestjs/common';
+import { EmailService } from './email.service';
+import { AuthService } from '../auth/auth.service';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 import type { Response } from 'express';
 
 @Controller('email')
@@ -30,11 +39,15 @@ export class EmailController {
       await this.authService.verifyEmail(token);
       // Redirect to login with success flag
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      return res.redirect(`${frontendUrl}/login?verified=true&message=Email%20verified!%20You%20can%20now%20login.`);
+      return res.redirect(
+        `${frontendUrl}/login?verified=true&message=Email%20verified!%20You%20can%20now%20login.`,
+      );
     } catch (error) {
       // Redirect with error message
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      const errorMsg = encodeURIComponent(error.message || 'Verification failed');
+      const errorMsg = encodeURIComponent(
+        error.message || 'Verification failed',
+      );
       return res.redirect(`${frontendUrl}/login?error=${errorMsg}`);
     }
   }
@@ -46,12 +59,18 @@ export class EmailController {
   @Post('verify-email')
   async verifyEmail(@Body() dto: VerifyEmailDto) {
     await this.authService.verifyEmail(dto.token);
-    return { success: true, message: 'Email verified successfully! You can now login.' };
+    return {
+      success: true,
+      message: 'Email verified successfully! You can now login.',
+    };
   }
 
   @Post('resend-verification')
   async resendVerification(@Body('email') email: string) {
     await this.authService.resendVerificationEmail(email);
-    return { success: true, message: `Verification email has been sent to ${email}` };
+    return {
+      success: true,
+      message: `Verification email has been sent to ${email}`,
+    };
   }
 }

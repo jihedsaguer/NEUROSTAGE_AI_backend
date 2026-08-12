@@ -36,7 +36,7 @@ export class Subject {
   technologies: string[];
 
   @Column({ nullable: true })
-  level: string; 
+  level: string;
 
   @Column('text', { nullable: true })
   prerequisites: string;

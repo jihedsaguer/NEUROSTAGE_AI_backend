@@ -1,4 +1,10 @@
-import { Logger, Module, NestModule, MiddlewareConsumer, OnModuleInit } from '@nestjs/common';
+import {
+  Logger,
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  OnModuleInit,
+} from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -83,24 +89,28 @@ export class AppModule implements NestModule, OnModuleInit {
         return;
       }
 
-      const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
-      const response = await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/embed/subjects/bulk`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Internal-Secret': INTERNAL_SECRET,
+      const fetchFn =
+        (globalThis as any).fetch ?? (await import('node-fetch')).default;
+      const response = await fetchFn(
+        `${AI_SERVICE_URL.replace(/\/$/, '')}/embed/subjects/bulk`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Secret': INTERNAL_SECRET,
+          },
+          body: JSON.stringify({
+            subjects: subjects.map((subject: any) => ({
+              subjectId: subject.id,
+              titre: subject.title,
+              description: subject.description,
+              techno: subject.technologies ?? [],
+              prerequis: subject.prerequisites ?? '',
+              niveau: subject.level ?? '',
+            })),
+          }),
         },
-        body: JSON.stringify({
-          subjects: subjects.map((subject: any) => ({
-            subjectId: subject.id,
-            titre: subject.title,
-            description: subject.description,
-            techno: subject.technologies ?? [],
-            prerequis: subject.prerequisites ?? '',
-            niveau: subject.level ?? '',
-          })),
-        }),
-      });
+      );
 
       if (!response.ok) {
         this.logger.warn(`Bulk subject warmup returned ${response.status}`);

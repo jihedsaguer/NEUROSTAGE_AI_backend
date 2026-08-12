@@ -1,4 +1,10 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, JoinTable } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToMany,
+  JoinTable,
+} from 'typeorm';
 import { Permission } from '../../permissions/entities/permission.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -8,7 +14,7 @@ export class Role {
   id: string;
 
   @Column({ unique: true })
-  name: string; 
+  name: string;
 
   @Column({ nullable: true })
   description: string;

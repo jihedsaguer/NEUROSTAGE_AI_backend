@@ -14,9 +14,9 @@ import { Candidature } from '../../candidatures/entities/candidature.entity';
 
 export enum StageStatus {
   PENDING_ACAD = 'PENDING_ACAD', // waiting for academic supervisor assignment
-  ACTIVE = 'ACTIVE',             // fully staffed, internship in progress
-  COMPLETED = 'COMPLETED',       // internship finished
-  CANCELLED = 'CANCELLED',       // cancelled by admin
+  ACTIVE = 'ACTIVE', // fully staffed, internship in progress
+  COMPLETED = 'COMPLETED', // internship finished
+  CANCELLED = 'CANCELLED', // cancelled by admin
 }
 
 @Entity('stages')

@@ -14,11 +14,11 @@ import { User } from '../../users/entities/user.entity';
 import { Livrable } from './livrable.entity';
 
 export enum JalonStatus {
-  PENDING   = 'PENDING',
+  PENDING = 'PENDING',
   SUBMITTED = 'SUBMITTED',
   VALIDATED = 'VALIDATED',
-  REJECTED  = 'REJECTED',
-  LATE      = 'LATE', // calculé dynamiquement, jamais persisté
+  REJECTED = 'REJECTED',
+  LATE = 'LATE', // calculé dynamiquement, jamais persisté
 }
 
 @Entity('jalons')

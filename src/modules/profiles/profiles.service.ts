@@ -164,7 +164,9 @@ export class ProfilesService {
       });
 
       if (existingCvs.length > 0) {
-        existingCvs.forEach((doc) => this.storageService.deleteFile(doc.fileUrl));
+        existingCvs.forEach((doc) =>
+          this.storageService.deleteFile(doc.fileUrl),
+        );
         await this.documentRepository.remove(existingCvs);
       }
     }
@@ -196,17 +198,25 @@ export class ProfilesService {
             const INTERNAL_SECRET = process.env.INTERNAL_SECRET;
             if (!AI_SERVICE_URL || !INTERNAL_SECRET) return;
 
-            const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
+            const fetchFn =
+              (globalThis as any).fetch ?? (await import('node-fetch')).default;
 
             // 1) request extraction (service may fetch the file via fileUrl)
-            const extractRes = await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/extract`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Internal-Secret': INTERNAL_SECRET,
+            const extractRes = await fetchFn(
+              `${AI_SERVICE_URL.replace(/\/$/, '')}/extract`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Internal-Secret': INTERNAL_SECRET,
+                },
+                body: JSON.stringify({
+                  filePath: file.path,
+                  userId,
+                  fileType: file.mimetype,
+                }),
               },
-              body: JSON.stringify({ filePath: file.path, userId, fileType: file.mimetype }),
-            });
+            );
 
             if (!extractRes.ok) {
               this.logger.warn(`AI extract returned ${extractRes.status}`);
@@ -214,29 +224,39 @@ export class ProfilesService {
             }
 
             const extraction = await extractRes.json();
-            const extractedText = extraction?.text ?? extraction?.extractedText ?? null;
+            const extractedText =
+              extraction?.text ?? extraction?.extractedText ?? null;
 
             // 2) request embedding with extracted text and profile context
-            await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/embed/student`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Internal-Secret': INTERNAL_SECRET,
+            await fetchFn(
+              `${AI_SERVICE_URL.replace(/\/$/, '')}/embed/student`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Internal-Secret': INTERNAL_SECRET,
+                },
+                body: JSON.stringify({
+                  userId,
+                  extractedText: extractedText ?? '',
+                  skills: profile.skills ?? [],
+                  university: profile.university ?? '',
+                  specialization: '',
+                  level: profile.level ?? '',
+                }),
               },
-              body: JSON.stringify({
-                userId,
-                extractedText: extractedText ?? '',
-                skills: profile.skills ?? [],
-                university: profile.university ?? '',
-                specialization: '',
-                level: profile.level ?? '',
-              }),
-            });
+            );
           } catch (err) {
-            this.logger.warn(`AI CV processing (fire-and-forget) failed: ${(err as Error).message}`);
+            this.logger.warn(
+              `AI CV processing (fire-and-forget) failed: ${(err as Error).message}`,
+            );
           }
         })
-        .catch((err) => this.logger.warn(`AI CV processing scheduling failed: ${(err as Error).message}`));
+        .catch((err) =>
+          this.logger.warn(
+            `AI CV processing scheduling failed: ${(err as Error).message}`,
+          ),
+        );
     }
 
     return this.mapDocumentToResponse(savedDocument);
@@ -340,10 +360,7 @@ export class ProfilesService {
     return profile;
   }
 
-  private validateDocumentFile(
-    type: string,
-    file: Express.Multer.File,
-  ): void {
+  private validateDocumentFile(type: string, file: Express.Multer.File): void {
     const rules = DOCUMENT_TYPE_RULES[type];
     if (!rules) {
       throw new BadRequestException(`Invalid document type: ${type}`);
@@ -472,16 +489,23 @@ export class ProfilesService {
         return { suggestions: [], message: 'AI service not configured' };
       }
 
-      const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
-      const res = await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/suggest/${userId}`, {
-        method: 'GET',
-        headers: {
-          'X-Internal-Secret': INTERNAL_SECRET ?? '',
+      const fetchFn =
+        (globalThis as any).fetch ?? (await import('node-fetch')).default;
+      const res = await fetchFn(
+        `${AI_SERVICE_URL.replace(/\/$/, '')}/suggest/${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Internal-Secret': INTERNAL_SECRET ?? '',
+          },
         },
-      });
+      );
 
       if (res.status === 404) {
-        return { suggestions: [], message: 'Upload a CV to get subject suggestions' };
+        return {
+          suggestions: [],
+          message: 'Upload a CV to get subject suggestions',
+        };
       }
 
       if (!res.ok) {
@@ -492,7 +516,9 @@ export class ProfilesService {
       const payload = await res.json();
       return { suggestions: payload.suggestions ?? [] };
     } catch (err) {
-      this.logger.warn(`Failed to get AI suggestions: ${(err as Error).message}`);
+      this.logger.warn(
+        `Failed to get AI suggestions: ${(err as Error).message}`,
+      );
       return { suggestions: [], message: 'AI suggestions unavailable' };
     }
   }

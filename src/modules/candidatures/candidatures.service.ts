@@ -23,83 +23,88 @@ export class CandidaturesService {
     private readonly stagesService: StagesService,
   ) {}
 
-
-   async mapToResponse(candidature: Candidature) {
+  async mapToResponse(candidature: Candidature) {
     return {
       id: candidature.id,
-        student: {
-            id: candidature.student?.id,
-            email: candidature.student?.email,
-            firstName: candidature.student?.firstName,
-            lastName: candidature.student?.lastName,
-        },
-        subject: {
-            id: candidature.subject?.id,
-            title: candidature.subject?.title,
-            description: candidature.subject?.description,
-            technologies: candidature.subject?.technologies,
-            level: candidature.subject?.level,
-            prerequisites: candidature.subject?.prerequisites,
-            status: candidature.subject?.status,
-        },
-        status: candidature.status,
-        motivation: candidature.motivation,
-        createdAt: candidature.createdAt,
-        scoreMatch: candidature.scoreMatch,
+      student: {
+        id: candidature.student?.id,
+        email: candidature.student?.email,
+        firstName: candidature.student?.firstName,
+        lastName: candidature.student?.lastName,
+      },
+      subject: {
+        id: candidature.subject?.id,
+        title: candidature.subject?.title,
+        description: candidature.subject?.description,
+        technologies: candidature.subject?.technologies,
+        level: candidature.subject?.level,
+        prerequisites: candidature.subject?.prerequisites,
+        status: candidature.subject?.status,
+      },
+      status: candidature.status,
+      motivation: candidature.motivation,
+      createdAt: candidature.createdAt,
+      scoreMatch: candidature.scoreMatch,
     };
-}
+  }
 
+  async createCandidature(dto: CreateCandidatureDto, user: User) {
+    if (!user.roles.some((role) => role.name === SYSTEM_ROLES.STUDENT)) {
+      console.log(user.roles);
+      throw new ForbiddenException('Only students can create candidatures');
+    }
+    const subject = await this.subjectRepository.findOne({
+      where: { id: dto.subjectId },
+      relations: ['createdBy'],
+    });
 
-async createCandidature(  dto: CreateCandidatureDto, user: User,) {
-   
-        if (!user.roles.some(role => role.name === SYSTEM_ROLES.STUDENT)) {
-            console.log(user.roles);
-            throw new ForbiddenException('Only students can create candidatures');  
-        }
-        const subject = await this.subjectRepository.findOne({ where: { id: dto.subjectId },
-        relations: ['createdBy']
-        });
-
-        if (!subject || subject.status !== 'VALIDATED') {
-            throw new NotFoundException('Subject not found');
-        }
-
-        const existing=await this.candidatureRepository.findOne({ where: 
-            {
-                 subject: { id: dto.subjectId },
-             student: { id: user.id }
-             } 
-            });
-        if (existing) {
-            throw new BadRequestException('Candidature already exists');
-        }
-        
-        const candidature = this.candidatureRepository.create({
-            student: user,
-            subject: subject,
-            motivation: dto.motivation,
-        });
-        return this.mapToResponse(await this.candidatureRepository.save(candidature));
+    if (!subject || subject.status !== 'VALIDATED') {
+      throw new NotFoundException('Subject not found');
     }
 
-
-    async getBySubjectId(subjectId: string,user: User) {
-      
-        const subject = await this.subjectRepository.findOne({ where: { id: subjectId },
-        relations: ['createdBy']
-        });
-        if (!subject) {
-            throw new NotFoundException('Subject not found');
-        }
-
-        const IsOwner = subject.createdBy?.id === user.id;
-        const IsAdmin = user.roles.some(role => role.name === SYSTEM_ROLES.ADMIN_FORMATION || role.name === SYSTEM_ROLES.SUPER_ADMIN);
-        if (!IsOwner && !IsAdmin) {
-            throw new ForbiddenException('You do not have access to this resource');
-        }
-        return await this.candidatureRepository.find({ where: { subject: { id: subjectId } } });
+    const existing = await this.candidatureRepository.findOne({
+      where: {
+        subject: { id: dto.subjectId },
+        student: { id: user.id },
+      },
+    });
+    if (existing) {
+      throw new BadRequestException('Candidature already exists');
     }
-    async updateStatus(id: string, dto: UpdateCandidatureDto, user: User) {
+
+    const candidature = this.candidatureRepository.create({
+      student: user,
+      subject: subject,
+      motivation: dto.motivation,
+    });
+    return this.mapToResponse(
+      await this.candidatureRepository.save(candidature),
+    );
+  }
+
+  async getBySubjectId(subjectId: string, user: User) {
+    const subject = await this.subjectRepository.findOne({
+      where: { id: subjectId },
+      relations: ['createdBy'],
+    });
+    if (!subject) {
+      throw new NotFoundException('Subject not found');
+    }
+
+    const IsOwner = subject.createdBy?.id === user.id;
+    const IsAdmin = user.roles.some(
+      (role) =>
+        role.name === SYSTEM_ROLES.ADMIN_FORMATION ||
+        role.name === SYSTEM_ROLES.SUPER_ADMIN,
+    );
+    if (!IsOwner && !IsAdmin) {
+      throw new ForbiddenException('You do not have access to this resource');
+    }
+    return await this.candidatureRepository.find({
+      where: { subject: { id: subjectId } },
+    });
+  }
+  async updateStatus(id: string, dto: UpdateCandidatureDto, user: User) {
     const candidature = await this.candidatureRepository.findOne({
       where: { id },
       relations: ['subject', 'subject.createdBy', 'subject.createdBy.roles'],
@@ -108,7 +113,11 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
       throw new NotFoundException('Candidature not found');
     }
     const IsOwner = candidature.subject?.createdBy?.id === user.id;
-    const IsAdmin = user.roles.some(role => role.name === SYSTEM_ROLES.ADMIN_FORMATION || role.name === SYSTEM_ROLES.SUPER_ADMIN);
+    const IsAdmin = user.roles.some(
+      (role) =>
+        role.name === SYSTEM_ROLES.ADMIN_FORMATION ||
+        role.name === SYSTEM_ROLES.SUPER_ADMIN,
+    );
     if (!IsOwner && !IsAdmin) {
       throw new ForbiddenException('You do not have access to this resource');
     }
@@ -136,7 +145,9 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
         await this.candidatureRepository.save(candidature);
 
         const errorMsg =
-          err instanceof Error ? `${err.name}: ${err.message}` : JSON.stringify(err);
+          err instanceof Error
+            ? `${err.name}: ${err.message}`
+            : JSON.stringify(err);
         console.error(
           '[CandidaturesService] Auto stage creation failed — status rolled back:',
           errorMsg,
@@ -153,17 +164,19 @@ async createCandidature(  dto: CreateCandidatureDto, user: User,) {
     return this.mapToResponse(saved);
   }
 
-async FindMyCandidatures(user: User) {
-    const IsStudent = user.roles.some(role => role.name === SYSTEM_ROLES.STUDENT);
+  async FindMyCandidatures(user: User) {
+    const IsStudent = user.roles.some(
+      (role) => role.name === SYSTEM_ROLES.STUDENT,
+    );
     if (!IsStudent) {
       throw new ForbiddenException('Only students can view their candidatures');
     }
 
-    return await this.candidatureRepository.find({ 
+    return await this.candidatureRepository.find({
       where: { student: { id: user.id } },
       relations: ['student', 'subject'],
     });
-}
+  }
 
   /**
    * Cancel a candidature - allows students to cancel their own, admins to cancel any
@@ -185,7 +198,9 @@ async FindMyCandidatures(user: User) {
       throw new NotFoundException('Candidature not found');
     }
 
-    const IsStudent = user.roles.some((role) => role.name === SYSTEM_ROLES.STUDENT);
+    const IsStudent = user.roles.some(
+      (role) => role.name === SYSTEM_ROLES.STUDENT,
+    );
     const IsAdmin = user.roles.some(
       (role) =>
         role.name === SYSTEM_ROLES.ADMIN_FORMATION ||
@@ -195,11 +210,15 @@ async FindMyCandidatures(user: User) {
 
     // Only the student (owner) or admin can cancel a candidature
     if (IsStudent && !IsOwner) {
-      throw new ForbiddenException('Students can only cancel their own candidatures');
+      throw new ForbiddenException(
+        'Students can only cancel their own candidatures',
+      );
     }
 
     if (!IsStudent && !IsAdmin) {
-      throw new ForbiddenException('Only students and admins can cancel candidatures');
+      throw new ForbiddenException(
+        'Only students and admins can cancel candidatures',
+      );
     }
 
     // Block cancellation only if there are stages that are still active/pending.
@@ -233,5 +252,4 @@ async FindMyCandidatures(user: User) {
       order: { createdAt: 'DESC' },
     });
   }
-  
 }

@@ -16,7 +16,11 @@ import { UpdateJalonDto } from './dto/update-jalon.dto';
 import { SubmitLivrableDto } from './dto/submit-livrable.dto';
 import { ValidateJalonDto } from './dto/validate-jalon.dto';
 import { AcadCommentDto } from './dto/acad-comment.dto';
-import { JalonResponseDto, LivrableResponseDto, UserSummaryDto } from './dto/jalon-response.dto';
+import {
+  JalonResponseDto,
+  LivrableResponseDto,
+  UserSummaryDto,
+} from './dto/jalon-response.dto';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 
 @Injectable()
@@ -32,7 +36,10 @@ export class JalonsService {
 
   // ─── Task 3.1 — Create a jalon ───────────────────────────────────────────────
 
-  async createJalon(dto: CreateJalonDto, user: User): Promise<JalonResponseDto> {
+  async createJalon(
+    dto: CreateJalonDto,
+    user: User,
+  ): Promise<JalonResponseDto> {
     // Requirement 1.1 / 1.2 — Stage must exist and be ACTIVE
     const stage = await this.stageRepository.findOne({
       where: { id: dto.stageId },
@@ -75,7 +82,11 @@ export class JalonsService {
 
   // ─── Task 3.4 — Update a jalon ───────────────────────────────────────────────
 
-  async updateJalon(id: string, dto: UpdateJalonDto, user: User): Promise<JalonResponseDto> {
+  async updateJalon(
+    id: string,
+    dto: UpdateJalonDto,
+    user: User,
+  ): Promise<JalonResponseDto> {
     const jalon = await this.jalonRepository.findOne({ where: { id } });
 
     if (!jalon) {
@@ -90,7 +101,8 @@ export class JalonsService {
     }
 
     if (dto.label !== undefined) jalon.label = dto.label;
-    if (dto.description !== undefined) jalon.description = dto.description ?? null;
+    if (dto.description !== undefined)
+      jalon.description = dto.description ?? null;
     if (dto.dueDate !== undefined) jalon.dueDate = new Date(dto.dueDate);
     if (dto.order !== undefined) {
       // Check uniqueness of new order within the stage (excluding current jalon)
@@ -130,9 +142,14 @@ export class JalonsService {
 
   // ─── Task 4.1 — List jalons for a stage (role-scoped) ────────────────────────
 
-  async getJalonsForStage(stageId: string, user: User): Promise<JalonResponseDto[]> {
+  async getJalonsForStage(
+    stageId: string,
+    user: User,
+  ): Promise<JalonResponseDto[]> {
     // Requirement 2.1 — stage must exist
-    const stage = await this.stageRepository.findOne({ where: { id: stageId } });
+    const stage = await this.stageRepository.findOne({
+      where: { id: stageId },
+    });
     if (!stage) {
       throw new NotFoundException(`Stage ${stageId} not found`);
     }
@@ -142,15 +159,21 @@ export class JalonsService {
 
     if (userRoles.includes(SYSTEM_ROLES.STUDENT)) {
       if (stage.studentId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the student of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the student of this stage',
+        );
       }
     } else if (userRoles.includes(SYSTEM_ROLES.ENCADRANT_PRO)) {
       if (stage.encadrantProId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the professional supervisor of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the professional supervisor of this stage',
+        );
       }
     } else if (userRoles.includes(SYSTEM_ROLES.ENCADRANT_ACADEMIQUE)) {
       if (stage.encadrantAcadId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the academic supervisor of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the academic supervisor of this stage',
+        );
       }
     }
     // admin_formation and super_admin: no restriction
@@ -178,7 +201,9 @@ export class JalonsService {
     }
 
     // Load stage to apply role-based scoping (same rules as getJalonsForStage)
-    const stage = await this.stageRepository.findOne({ where: { id: jalon.stageId } });
+    const stage = await this.stageRepository.findOne({
+      where: { id: jalon.stageId },
+    });
     if (!stage) {
       throw new NotFoundException(`Stage ${jalon.stageId} not found`);
     }
@@ -187,15 +212,21 @@ export class JalonsService {
 
     if (userRoles.includes(SYSTEM_ROLES.STUDENT)) {
       if (stage.studentId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the student of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the student of this stage',
+        );
       }
     } else if (userRoles.includes(SYSTEM_ROLES.ENCADRANT_PRO)) {
       if (stage.encadrantProId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the professional supervisor of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the professional supervisor of this stage',
+        );
       }
     } else if (userRoles.includes(SYSTEM_ROLES.ENCADRANT_ACADEMIQUE)) {
       if (stage.encadrantAcadId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the academic supervisor of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the academic supervisor of this stage',
+        );
       }
     }
 
@@ -204,7 +235,11 @@ export class JalonsService {
 
   // ─── Task 6.1 — Submit a livrable ────────────────────────────────────────────
 
-  async submitLivrable(jalonId: string, dto: SubmitLivrableDto, user: User): Promise<JalonResponseDto> {
+  async submitLivrable(
+    jalonId: string,
+    dto: SubmitLivrableDto,
+    user: User,
+  ): Promise<JalonResponseDto> {
     // Load jalon with livrable and stage relations
     const jalon = await this.jalonRepository.findOne({
       where: { id: jalonId },
@@ -217,7 +252,9 @@ export class JalonsService {
 
     // Requirements 3.1, 3.2 — jalon must belong to the student's stage
     if (jalon.stage.studentId !== user.id) {
-      throw new ForbiddenException('Access denied: this jalon does not belong to your stage');
+      throw new ForbiddenException(
+        'Access denied: this jalon does not belong to your stage',
+      );
     }
 
     // Requirements 3.3, 3.4 — status must be PENDING or REJECTED (not VALIDATED)
@@ -287,15 +324,21 @@ export class JalonsService {
 
     if (userRoles.includes(SYSTEM_ROLES.STUDENT)) {
       if (stage.studentId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the student of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the student of this stage',
+        );
       }
     } else if (userRoles.includes(SYSTEM_ROLES.ENCADRANT_PRO)) {
       if (stage.encadrantProId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the professional supervisor of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the professional supervisor of this stage',
+        );
       }
     } else if (userRoles.includes(SYSTEM_ROLES.ENCADRANT_ACADEMIQUE)) {
       if (stage.encadrantAcadId !== user.id) {
-        throw new ForbiddenException('Access denied: you are not the academic supervisor of this stage');
+        throw new ForbiddenException(
+          'Access denied: you are not the academic supervisor of this stage',
+        );
       }
     }
     // admin_formation and super_admin: no restriction
@@ -322,7 +365,11 @@ export class JalonsService {
 
   // ─── Task 7.1 — Validate or reject a jalon (encadrant_pro) ──────────────────
 
-  async validateJalon(id: string, dto: ValidateJalonDto, user: User): Promise<JalonResponseDto> {
+  async validateJalon(
+    id: string,
+    dto: ValidateJalonDto,
+    user: User,
+  ): Promise<JalonResponseDto> {
     // Load jalon with all relations needed for the response and access checks
     const jalon = await this.jalonRepository.findOne({
       where: { id },
@@ -349,11 +396,14 @@ export class JalonsService {
 
     // Requirement 4.7 — REJECT requires a non-empty proComment
     if (dto.action === 'REJECT' && !dto.proComment?.trim()) {
-      throw new BadRequestException('A comment is required when rejecting a jalon');
+      throw new BadRequestException(
+        'A comment is required when rejecting a jalon',
+      );
     }
 
     // Requirements 4.5, 4.6 — apply the action
-    jalon.status = dto.action === 'VALIDATE' ? JalonStatus.VALIDATED : JalonStatus.REJECTED;
+    jalon.status =
+      dto.action === 'VALIDATE' ? JalonStatus.VALIDATED : JalonStatus.REJECTED;
     jalon.validatedById = user.id;
     jalon.validatedBy = user;
     jalon.validatedAt = new Date();
@@ -365,7 +415,11 @@ export class JalonsService {
 
   // ─── Task 7.2 — Add academic comment (encadrant_academique) ──────────────────
 
-  async addAcadComment(id: string, dto: AcadCommentDto, user: User): Promise<JalonResponseDto> {
+  async addAcadComment(
+    id: string,
+    dto: AcadCommentDto,
+    user: User,
+  ): Promise<JalonResponseDto> {
     // Load jalon with relations needed for access check and response
     const jalon = await this.jalonRepository.findOne({
       where: { id },
@@ -399,7 +453,8 @@ export class JalonsService {
     const dueDate = new Date(jalon.dueDate);
     const isOverdue = dueDate < now;
     const isOpenStatus =
-      jalon.status === JalonStatus.PENDING || jalon.status === JalonStatus.SUBMITTED;
+      jalon.status === JalonStatus.PENDING ||
+      jalon.status === JalonStatus.SUBMITTED;
 
     if (isOverdue && isOpenStatus) {
       return JalonStatus.LATE;
@@ -407,7 +462,10 @@ export class JalonsService {
     return jalon.status;
   }
 
-  private mapToResponse(jalon: Jalon, livrable?: Livrable | null): JalonResponseDto {
+  private mapToResponse(
+    jalon: Jalon,
+    livrable?: Livrable | null,
+  ): JalonResponseDto {
     let livrableDto: LivrableResponseDto | null = null;
     const livrableSource = livrable !== undefined ? livrable : jalon.livrable;
 

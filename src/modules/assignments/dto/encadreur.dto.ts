@@ -15,6 +15,6 @@ export class EncadreurDto {
   lastName: string;
 
   @Expose()
-  @Type(() => RoleDto)   // ensures roles are transformed properly
+  @Type(() => RoleDto) // ensures roles are transformed properly
   roles: RoleDto[];
 }

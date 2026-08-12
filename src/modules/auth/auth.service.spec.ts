@@ -17,7 +17,10 @@ describe('AuthService', () => {
         AuthService,
         { provide: getRepositoryToken(User), useValue: { findOne: jest.fn() } },
         { provide: getRepositoryToken(Role), useValue: {} },
-        { provide: JwtService, useValue: { sign: jest.fn().mockReturnValue('signed-token') } },
+        {
+          provide: JwtService,
+          useValue: { sign: jest.fn().mockReturnValue('signed-token') },
+        },
       ],
     }).compile();
 
@@ -38,14 +41,10 @@ describe('AuthService', () => {
         firstName: 'Test',
         lastName: 'User',
         isActive: true,
-        roles: [
-          { name: 'student', permissions: [{ action: 'read' }] },
-        ],
+        roles: [{ name: 'student', permissions: [{ action: 'read' }] }],
       };
 
-      jest
-        .spyOn(service, 'validateUser')
-        .mockResolvedValue(fakeUser as User);
+      jest.spyOn(service, 'validateUser').mockResolvedValue(fakeUser as User);
       jest
         .spyOn(service as any, 'setRefreshToken')
         .mockResolvedValue('refresh-token');
@@ -69,15 +68,15 @@ describe('AuthService', () => {
         firstName: 'Test',
         lastName: 'User',
         isActive: true,
-        roles: [
-          { name: 'student', permissions: [{ action: 'read' }] },
-        ],
+        roles: [{ name: 'student', permissions: [{ action: 'read' }] }],
         refreshToken: 'old-token',
         refreshTokenExpires: new Date(Date.now() + 10000),
       };
 
       jest.spyOn(userRepo, 'findOne' as any).mockResolvedValue(fakeUser);
-      jest.spyOn(service as any, 'setRefreshToken').mockResolvedValue('new-refresh');
+      jest
+        .spyOn(service as any, 'setRefreshToken')
+        .mockResolvedValue('new-refresh');
 
       const res = await service.refreshToken('old-token');
       expect(res.accessToken).toEqual('signed-token');

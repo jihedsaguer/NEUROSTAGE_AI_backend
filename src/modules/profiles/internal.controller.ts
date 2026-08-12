@@ -1,4 +1,10 @@
-import { Controller, Post, Param, Headers, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Param,
+  Headers,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ProfilesService } from './profiles.service';
 
 /**

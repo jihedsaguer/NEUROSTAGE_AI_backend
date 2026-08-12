@@ -27,7 +27,11 @@ export class AuditController {
     @Param('id') resourceId: string,
     @Query('limit') limit?: number,
   ): Promise<AuditLogResponseDto[]> {
-    const logs = await this.auditService.getAuditTrail(resourceType, resourceId, limit);
+    const logs = await this.auditService.getAuditTrail(
+      resourceType,
+      resourceId,
+      limit,
+    );
     return AuditLogResponseDto.fromEntities(logs);
   }
 

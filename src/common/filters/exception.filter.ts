@@ -34,7 +34,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = (exceptionResponse as any).message || exception.message;
         error = (exceptionResponse as any).error || {};
       } else {
-        message = exceptionResponse as string;
+        message = exceptionResponse;
       }
     } else if (exception instanceof Error) {
       message = exception.message;
@@ -48,9 +48,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Log the exception
-    this.logger.error(`[${request?.method}] ${request?.url} - ${status}`, exception, {
-      userId: request?.user?.id,
-    });
+    this.logger.error(
+      `[${request?.method}] ${request?.url} - ${status}`,
+      exception,
+      {
+        userId: request?.user?.id,
+      },
+    );
 
     // Send standardized response
     response.status(status).json({

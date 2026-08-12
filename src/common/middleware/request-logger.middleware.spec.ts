@@ -22,7 +22,7 @@ describe('RequestLoggerMiddleware', () => {
 
   it('should attach correlation ID to request', () => {
     const loggerSpy = jest.spyOn(loggerService, 'log');
-    
+
     const mockRequest = {
       method: 'GET',
       url: '/test',

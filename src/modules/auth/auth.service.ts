@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { User } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
-import { Role } from 'src/modules/roles/entities/role.entity';
+import { Role } from '../roles/entities/role.entity';
 import { NotFoundException } from '@nestjs/common';
 import { UserResponseDto } from './dto/user-response.dto';
 import { plainToInstance } from 'class-transformer';
@@ -32,68 +32,69 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  async register(registerDto: RegisterDto): Promise<UserResponseDto> {
+    const { email, password, firstName, lastName } = registerDto;
 
-async register(registerDto: RegisterDto): Promise<UserResponseDto> {
-  const { email, password, firstName, lastName } = registerDto;
+    const existingUser = await this.userRepository.findOne({
+      where: { email },
+    });
 
-  const existingUser = await this.userRepository.findOne({
-    where: { email },
-  });
+    if (existingUser) {
+      throw new ConflictException('Email already exists');
+    }
 
-  if (existingUser) {
-    throw new ConflictException('Email already exists');
-  }
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+    const defaultRole = await this.roleRepository.findOne({
+      where: { name: SYSTEM_ROLES.STUDENT },
+    });
 
-  const defaultRole = await this.roleRepository.findOne({
-    where: { name: SYSTEM_ROLES.STUDENT },
-  });
-
-  if (!defaultRole) {
-    throw new InternalServerErrorException('Default role configuration error');
-  }
-
-  // Step 1: create and SAVE user first to get a real DB id
-  const user = this.userRepository.create({
-    email,
-    password: hashedPassword,
-    firstName,
-    lastName,
-    isActive: true,
-    isEmailVerified: false,
-    roles: [defaultRole],
-  });
-  const savedUser = await this.userRepository.save(user);
-
-  // Step 2: NOW generate and persist verification token on the saved entity
-  const token = await this.generateEmailVerificationToken(savedUser);
-
-  // Step 3: send verification email — never throw, always log
-  try {
-    await this.emailService.sendVerificationEmail(savedUser, token);
-  } catch (err) {
-    this.logger.error(
-      `Failed to send verification email to ${savedUser.email}: ${(err as Error).message}`,
-    );
-    // In dev mode, log the token so developers can verify accounts manually
-    if (process.env.NODE_ENV !== 'production' && !process.env.MAIL_HOST) {
-      this.logger.warn(
-        `[DEV] Verification token for ${savedUser.email}: ${token}`,
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        'Default role configuration error',
       );
     }
+
+    // Step 1: create and SAVE user first to get a real DB id
+    const user = this.userRepository.create({
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      isActive: true,
+      isEmailVerified: false,
+      roles: [defaultRole],
+    });
+    const savedUser = await this.userRepository.save(user);
+
+    // Step 2: NOW generate and persist verification token on the saved entity
+    const token = await this.generateEmailVerificationToken(savedUser);
+
+    // Step 3: send verification email — never throw, always log
+    try {
+      await this.emailService.sendVerificationEmail(savedUser, token);
+    } catch (err) {
+      this.logger.error(
+        `Failed to send verification email to ${savedUser.email}: ${(err as Error).message}`,
+      );
+      // In dev mode, log the token so developers can verify accounts manually
+      if (process.env.NODE_ENV !== 'production' && !process.env.MAIL_HOST) {
+        this.logger.warn(
+          `[DEV] Verification token for ${savedUser.email}: ${token}`,
+        );
+      }
+    }
+
+    const fullUser = await this.userRepository.findOne({
+      where: { id: savedUser.id },
+      relations: ['roles'],
+    });
+
+    return plainToInstance(UserResponseDto, fullUser, {
+      excludeExtraneousValues: true,
+    });
   }
-
-  const fullUser = await this.userRepository.findOne({
-    where: { id: savedUser.id },
-    relations: ['roles'],
-  });
-
-  return plainToInstance(UserResponseDto, fullUser, {
-    excludeExtraneousValues: true,
-  });
-}
-async validateUser(email: string, password: string): Promise<User> {
+  async validateUser(email: string, password: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },
       relations: ['roles', 'roles.permissions'],
@@ -115,24 +116,26 @@ async validateUser(email: string, password: string): Promise<User> {
     return user;
   }
 
-  
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
     const { email, password } = loginDto;
     const user = await this.validateUser(email, password);
 
-    const permissions = user.roles
-      .flatMap(r => r.permissions?.map(p => p.action) ?? []);
+    const permissions = user.roles.flatMap(
+      (r) => r.permissions?.map((p) => p.action) ?? [],
+    );
     const uniquePermissions = Array.from(new Set(permissions));
 
     // Email verification is required before login
     if (!user.isEmailVerified) {
-      throw new UnauthorizedException('Please verify your email before logging in');
+      throw new UnauthorizedException(
+        'Please verify your email before logging in',
+      );
     }
 
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      roles: user.roles.map(r => r.name),
+      roles: user.roles.map((r) => r.name),
       permissions: uniquePermissions,
     };
 
@@ -143,18 +146,23 @@ async validateUser(email: string, password: string): Promise<User> {
       excludeExtraneousValues: true,
     });
 
-    return plainToInstance(AuthResponseDto, {
-      user: userDto,
-      accessToken,
-      refreshToken,
-    }, { excludeExtraneousValues: true });
+    return plainToInstance(
+      AuthResponseDto,
+      {
+        user: userDto,
+        accessToken,
+        refreshToken,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
-    
 
   async generateEmailVerificationToken(user: User): Promise<string> {
     const token = require('crypto').randomBytes(32).toString('hex');
     user.emailVerificationToken = token;
-    user.emailVerificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    user.emailVerificationTokenExpires = new Date(
+      Date.now() + 24 * 60 * 60 * 1000,
+    );
     await this.userRepository.save(user);
     return token;
   }
@@ -173,7 +181,10 @@ async validateUser(email: string, password: string): Promise<User> {
       throw new NotFoundException('Invalid verification token');
     }
 
-    if (user.emailVerificationTokenExpires && user.emailVerificationTokenExpires < new Date()) {
+    if (
+      user.emailVerificationTokenExpires &&
+      user.emailVerificationTokenExpires < new Date()
+    ) {
       throw new NotFoundException('Verification token has expired');
     }
 
@@ -184,7 +195,6 @@ async validateUser(email: string, password: string): Promise<User> {
     await this.userRepository.save(user);
   }
 
- 
   private async setRefreshToken(user: User): Promise<string> {
     const token = require('crypto').randomBytes(64).toString('hex');
     user.refreshToken = token;
@@ -192,7 +202,6 @@ async validateUser(email: string, password: string): Promise<User> {
     await this.userRepository.save(user);
     return token;
   }
-
 
   async refreshToken(oldRefreshToken: string): Promise<AuthResponseDto> {
     const user = await this.userRepository.findOne({
@@ -207,14 +216,15 @@ async validateUser(email: string, password: string): Promise<User> {
     }
 
     // generate new access token+refresh token
-    const permissions = user.roles
-      .flatMap(r => r.permissions?.map(p => p.action) ?? []);
+    const permissions = user.roles.flatMap(
+      (r) => r.permissions?.map((p) => p.action) ?? [],
+    );
     const uniquePermissions = Array.from(new Set(permissions));
 
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
-      roles: user.roles.map(r => r.name),
+      roles: user.roles.map((r) => r.name),
       permissions: uniquePermissions,
     };
 
@@ -225,14 +235,17 @@ async validateUser(email: string, password: string): Promise<User> {
       excludeExtraneousValues: true,
     });
 
-    return plainToInstance(AuthResponseDto, {
-      user: userDto,
-      accessToken,
-      refreshToken: refresh,
-    }, { excludeExtraneousValues: true });
+    return plainToInstance(
+      AuthResponseDto,
+      {
+        user: userDto,
+        accessToken,
+        refreshToken: refresh,
+      },
+      { excludeExtraneousValues: true },
+    );
   }
 
- 
   async logout(userId: string): Promise<void> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (user) {
@@ -242,8 +255,7 @@ async validateUser(email: string, password: string): Promise<User> {
     }
   }
 
-
-async resendVerificationEmail(email: string): Promise<void> {
+  async resendVerificationEmail(email: string): Promise<void> {
     const user = await this.userRepository.findOne({
       where: { email },
     });
@@ -261,7 +273,9 @@ async resendVerificationEmail(email: string): Promise<void> {
         `Failed to resend verification email to ${user.email}: ${(err as Error).message}`,
       );
       if (process.env.NODE_ENV !== 'production' && !process.env.MAIL_HOST) {
-        this.logger.warn(`[DEV] Verification token for ${user.email}: ${token}`);
+        this.logger.warn(
+          `[DEV] Verification token for ${user.email}: ${token}`,
+        );
       }
     }
   }
@@ -272,10 +286,7 @@ async resendVerificationEmail(email: string): Promise<void> {
    */
   async devVerifyEmail(email: string): Promise<void> {
     if (process.env.NODE_ENV === 'production') return;
-    await this.userRepository.update(
-      { email },
-      { isEmailVerified: true },
-    );
+    await this.userRepository.update({ email }, { isEmailVerified: true });
     this.logger.warn(`[DEV] Manually verified email for: ${email}`);
   }
 }

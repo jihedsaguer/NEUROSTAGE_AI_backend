@@ -6,8 +6,8 @@ import { AssignmentsService } from './assignments.service';
 import { User } from '../users/entities/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Assignment,User])],
-  controllers : [AssignmentsController],
+  imports: [TypeOrmModule.forFeature([Assignment, User])],
+  controllers: [AssignmentsController],
   providers: [AssignmentsService],
   exports: [TypeOrmModule, AssignmentsService],
 })

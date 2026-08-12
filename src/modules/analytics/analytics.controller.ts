@@ -51,19 +51,31 @@ export class AnalyticsController {
   // ─── Encadreur endpoints ──────────────────────────────────────────────────
 
   @Get('encadreur/overview')
-  @Roles(SYSTEM_ROLES.ENCADRANT_PRO, SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
+  @Roles(
+    SYSTEM_ROLES.ENCADRANT_PRO,
+    SYSTEM_ROLES.SUPER_ADMIN,
+    SYSTEM_ROLES.ADMIN_FORMATION,
+  )
   async getEncadreurOverview(@Request() req: any) {
     return this.analyticsService.getEncadreurOverview(req.user.id);
   }
 
   @Get('encadreur/my-students')
-  @Roles(SYSTEM_ROLES.ENCADRANT_PRO, SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
+  @Roles(
+    SYSTEM_ROLES.ENCADRANT_PRO,
+    SYSTEM_ROLES.SUPER_ADMIN,
+    SYSTEM_ROLES.ADMIN_FORMATION,
+  )
   async getEncadreurMyStudents(@Request() req: any) {
     return this.analyticsService.getEncadreurMyStudents(req.user.id);
   }
 
   @Get('encadreur/jalon-alerts')
-  @Roles(SYSTEM_ROLES.ENCADRANT_PRO, SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
+  @Roles(
+    SYSTEM_ROLES.ENCADRANT_PRO,
+    SYSTEM_ROLES.SUPER_ADMIN,
+    SYSTEM_ROLES.ADMIN_FORMATION,
+  )
   async getEncadreurJalonAlerts(@Request() req: any) {
     return this.analyticsService.getEncadreurJalonAlerts(req.user.id);
   }

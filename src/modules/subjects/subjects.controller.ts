@@ -14,14 +14,19 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { SubjectsService } from './subjects.service';
-import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto, QuerySubjectsFilterDto } from './dto';
+import {
+  CreateSubjectDto,
+  UpdateSubjectDto,
+  ValidateSubjectDto,
+  QuerySubjectsFilterDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 import { Audit } from 'src/common/audit/audit.decorator';
 import { create } from 'domain';
-import {AuditInterceptor} from '../../common/interceptors/audit.interceptor';
+import { AuditInterceptor } from '../../common/interceptors/audit.interceptor';
 import { audit } from 'rxjs';
 @Controller('subjects')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -36,22 +41,25 @@ export class SubjectsController {
     SYSTEM_ROLES.ADMIN_FORMATION,
   )
   async createSubject(
-    
     @Body() createSubjectDto: CreateSubjectDto,
     @Request() req,
   ) {
-    return await this.subjectsService.createSubject(
-      createSubjectDto,
-      req.user,
-    );
+    return await this.subjectsService.createSubject(createSubjectDto, req.user);
   }
 
   @Post('generate-draft')
   @Roles(SYSTEM_ROLES.ENCADRANT_PRO, SYSTEM_ROLES.ADMIN_FORMATION)
   @Audit('GENERATE_SUBJECT_DRAFT', 'GenerationIA')
-  async generateDraft(@Body() body: { studentIds: string[]; context?: string }, @Request() req) {
+  async generateDraft(
+    @Body() body: { studentIds: string[]; context?: string },
+    @Request() req,
+  ) {
     const encadreurId = req.user?.id;
-    return await this.subjectsService.generateSubjectDraft(body.studentIds || [], encadreurId, body.context);
+    return await this.subjectsService.generateSubjectDraft(
+      body.studentIds || [],
+      encadreurId,
+      body.context,
+    );
   }
   @Get()
   async getAllSubjects(
@@ -60,12 +68,9 @@ export class SubjectsController {
   ) {
     return await this.subjectsService.getAllSubjects(req.user, filter);
   }
-  
+
   @Get('my')
-  async getMySubjects(
-    @Query() filter: QuerySubjectsFilterDto,
-    @Request() req,
-  ) {
+  async getMySubjects(@Query() filter: QuerySubjectsFilterDto, @Request() req) {
     return await this.subjectsService.getMySubjects(req.user, filter);
   }
 
@@ -123,8 +128,10 @@ export class SubjectsController {
     @Body() validateSubjectDto: ValidateSubjectDto,
     @Request() req,
   ) {
-    return await this.subjectsService.validateSubject(id, validateSubjectDto, req.user);
+    return await this.subjectsService.validateSubject(
+      id,
+      validateSubjectDto,
+      req.user,
+    );
   }
-
-
 }

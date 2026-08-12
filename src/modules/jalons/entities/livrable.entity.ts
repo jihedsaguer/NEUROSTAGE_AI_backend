@@ -14,7 +14,10 @@ export class Livrable {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @OneToOne(() => Jalon, (j) => j.livrable, { nullable: false, onDelete: 'CASCADE' })
+  @OneToOne(() => Jalon, (j) => j.livrable, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'jalon_id' })
   jalon: Jalon;
 

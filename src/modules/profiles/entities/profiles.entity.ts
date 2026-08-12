@@ -14,7 +14,7 @@ export class StudentProfile {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({  nullable: true })
+  @Column({ nullable: true })
   phone: string;
 
   @Column({ nullable: true })
@@ -24,7 +24,7 @@ export class StudentProfile {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-   @Column({ unique: true })
+  @Column({ unique: true })
   userId: string;
 
   @Column({ nullable: true })
@@ -64,7 +64,3 @@ export class StudentProfile {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-  
-
-
-

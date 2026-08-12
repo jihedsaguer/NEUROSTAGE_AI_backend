@@ -8,11 +8,20 @@ import { Role } from '../../modules/roles/entities/role.entity';
 import { StudentProfile } from '../../modules/profiles/entities/profiles.entity';
 import { Subject } from '../../modules/subjects/entities/subject.entity';
 import { Stage, StageStatus } from '../../modules/stages/entities/stage.entity';
-import { ChatRoom, ChatRoomType } from '../../modules/chat/entities/chat-room.entity';
+import {
+  ChatRoom,
+  ChatRoomType,
+} from '../../modules/chat/entities/chat-room.entity';
 import { ChatParticipant } from '../../modules/chat/entities/chat-participant.entity';
-import { ChatMessage, MessageType } from '../../modules/chat/entities/chat-message.entity';
+import {
+  ChatMessage,
+  MessageType,
+} from '../../modules/chat/entities/chat-message.entity';
 import { Permission } from '../../modules/permissions/entities/permission.entity';
-import { Candidature, CandidatureStatus } from '../../modules/candidatures/entities/candidature.entity';
+import {
+  Candidature,
+  CandidatureStatus,
+} from '../../modules/candidatures/entities/candidature.entity';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -37,11 +46,7 @@ const AppDataSource = new DataSource({
   ],
 });
 
-const safeInsert = async (
-  repo: any,
-  data: any[],
-  uniqueField: string
-) => {
+const safeInsert = async (repo: any, data: any[], uniqueField: string) => {
   for (const item of data) {
     const exists = await repo.findOne({
       where: { [uniqueField]: item[uniqueField] },
@@ -69,63 +74,71 @@ async function seed() {
   const permissionRepo = AppDataSource.getRepository(Permission);
 
   // ───────── ROLES (SAFE) ─────────
-  await safeInsert(roleRepo, [
-  { name: 'student' },
-  { name: 'encadrant_pro' },
-  { name: 'encadrant_acad' },
-  { name: 'admin_formation' },
-  { name: 'super_admin' },
-], 'name');
+  await safeInsert(
+    roleRepo,
+    [
+      { name: 'student' },
+      { name: 'encadrant_pro' },
+      { name: 'encadrant_acad' },
+      { name: 'admin_formation' },
+      { name: 'super_admin' },
+    ],
+    'name',
+  );
 
   const roles = await roleRepo.find();
-  const getRole = (name: string) => roles.find(r => r.name === name)!;
+  const getRole = (name: string) => roles.find((r) => r.name === name)!;
 
   // ───────── PERMISSIONS (SAFE) ─────────
- await safeInsert(permissionRepo, [
-  // USERS
-  { action: 'users.create' },
-  { action: 'users.read' },
-  { action: 'users.update' },
-  { action: 'users.delete' },
-  { action: 'users.manage_roles' },
+  await safeInsert(
+    permissionRepo,
+    [
+      // USERS
+      { action: 'users.create' },
+      { action: 'users.read' },
+      { action: 'users.update' },
+      { action: 'users.delete' },
+      { action: 'users.manage_roles' },
 
-  // SUBJECTS
-  { action: 'subjects.create' },
-  { action: 'subjects.read' },
-  { action: 'subjects.update' },
-  { action: 'subjects.delete' },
-  { action: 'subjects.validate' },
+      // SUBJECTS
+      { action: 'subjects.create' },
+      { action: 'subjects.read' },
+      { action: 'subjects.update' },
+      { action: 'subjects.delete' },
+      { action: 'subjects.validate' },
 
-  // CANDIDATURES
-  { action: 'candidatures.create' },
-  { action: 'candidatures.read' },
-  { action: 'candidatures.update' },
-  { action: 'candidatures.delete' },
-  { action: 'candidatures.evaluate' },
+      // CANDIDATURES
+      { action: 'candidatures.create' },
+      { action: 'candidatures.read' },
+      { action: 'candidatures.update' },
+      { action: 'candidatures.delete' },
+      { action: 'candidatures.evaluate' },
 
-  // STAGES
-  { action: 'stages.create' },
-  { action: 'stages.read' },
-  { action: 'stages.update' },
-  { action: 'stages.delete' },
-  { action: 'stages.assign_encadrant' },
+      // STAGES
+      { action: 'stages.create' },
+      { action: 'stages.read' },
+      { action: 'stages.update' },
+      { action: 'stages.delete' },
+      { action: 'stages.assign_encadrant' },
 
-  // CHAT
-  { action: 'chat.send' },
-  { action: 'chat.read' },
-  { action: 'chat.delete' },
+      // CHAT
+      { action: 'chat.send' },
+      { action: 'chat.read' },
+      { action: 'chat.delete' },
 
-  // DOCUMENTS
-  { action: 'documents.generate' },
-  { action: 'documents.read' },
+      // DOCUMENTS
+      { action: 'documents.generate' },
+      { action: 'documents.read' },
 
-  // AI
-  { action: 'ai.matching.use' },
-  { action: 'ai.rag.use' },
+      // AI
+      { action: 'ai.matching.use' },
+      { action: 'ai.rag.use' },
 
-  // ADMIN
-  { action: 'admin.settings.manage' },
-], 'action');
+      // ADMIN
+      { action: 'admin.settings.manage' },
+    ],
+    'action',
+  );
 
   const admin = await userRepo.save({
     id: uuid(),
@@ -192,14 +205,16 @@ async function seed() {
     commentaires: 'Auto-approved seed',
   });
 
-  const stage = await stageRepo.save(stageRepo.create({
-    candidatureId: candidature.id,
-    subjectId: subject.id,
-    studentId: student.id,
-    encadrantProId: encadrantPro.id,
-    encadrantAcadId: encadrantAcad.id,
-    status: StageStatus.ACTIVE,
-  }));
+  const stage = await stageRepo.save(
+    stageRepo.create({
+      candidatureId: candidature.id,
+      subjectId: subject.id,
+      studentId: student.id,
+      encadrantProId: encadrantPro.id,
+      encadrantAcadId: encadrantAcad.id,
+      status: StageStatus.ACTIVE,
+    }),
+  );
 
   const room = await roomRepo.save({
     id: uuid(),

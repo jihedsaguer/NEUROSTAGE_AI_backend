@@ -1,4 +1,13 @@
-import { Controller, Post, Get, Param, Put, Delete, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Put,
+  Delete,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';

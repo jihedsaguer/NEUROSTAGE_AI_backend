@@ -10,7 +10,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Subject, SubjectStatus } from './entities/subject.entity';
 import { GenerationIA } from '../ai/entities/generation-ia.entity';
-import { CreateSubjectDto, UpdateSubjectDto, ValidateSubjectDto, SubjectResponseDto, QuerySubjectsFilterDto, SortField, SortOrder } from './dto';
+import {
+  CreateSubjectDto,
+  UpdateSubjectDto,
+  ValidateSubjectDto,
+  SubjectResponseDto,
+  QuerySubjectsFilterDto,
+  SortField,
+  SortOrder,
+} from './dto';
 import { User } from '../users/entities/user.entity';
 import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 import { PaginatedResponseDto } from '../../common/dto';
@@ -44,25 +52,33 @@ export class SubjectsService {
     const payload = { studentIds, encadreurId, context };
 
     try {
-      const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
+      const fetchFn =
+        (globalThis as any).fetch ?? (await import('node-fetch')).default;
 
-      const resp = await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/generate/subject-from-cv`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Internal-Secret': INTERNAL_SECRET,
+      const resp = await fetchFn(
+        `${AI_SERVICE_URL.replace(/\/$/, '')}/generate/subject-from-cv`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Secret': INTERNAL_SECRET,
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
 
       if (resp.status === 404) {
         const body = await resp.json().catch(() => ({}));
-        const detail = (body as any)?.detail ?? 'One or more students have not uploaded a CV yet';
+        const detail =
+          body?.detail ?? 'One or more students have not uploaded a CV yet';
         return { error: detail, drafts: [] };
       }
       if (!resp.ok) {
         this.logger.warn(`AI generation returned ${resp.status}`);
-        return { error: 'AI generation failed — please try again later', drafts: [] };
+        return {
+          error: 'AI generation failed — please try again later',
+          drafts: [],
+        };
       }
 
       const result = await resp.json();
@@ -80,7 +96,9 @@ export class SubjectsService {
           } as any);
         }
       } catch (e) {
-        this.logger.warn(`Failed to persist GenerationIA: ${(e as Error).message}`);
+        this.logger.warn(
+          `Failed to persist GenerationIA: ${(e as Error).message}`,
+        );
       }
 
       // Auto-create the subject as DRAFT so admin_formation can validate it
@@ -117,30 +135,34 @@ export class SubjectsService {
         status: 'DRAFT',
       };
     } catch (err) {
-      this.logger.warn(`generateSubjectDraft failed: ${(err as Error).message}`);
-      return { error: 'AI service unreachable — please try again later', drafts: [] };
+      this.logger.warn(
+        `generateSubjectDraft failed: ${(err as Error).message}`,
+      );
+      return {
+        error: 'AI service unreachable — please try again later',
+        drafts: [],
+      };
     }
   }
 
-
   private mapToResponse(subject: Subject) {
-  return {
-    id: subject.id,
-    title: subject.title,
-    description: subject.description,
-    technologies: subject.technologies,
-    level: subject.level,
-    prerequisites: subject.prerequisites,
-    status: subject.status,
-    createdBy: {
-  id: subject.createdBy?.id ?? 'unknown',
-  firstName: subject.createdBy?.firstName ?? 'unknown',
-  lastName: subject.createdBy?.lastName ?? 'unknown',
-},
-    createdAt: subject.createdAt,
-    updatedAt: subject.updatedAt,
-  };
-}
+    return {
+      id: subject.id,
+      title: subject.title,
+      description: subject.description,
+      technologies: subject.technologies,
+      level: subject.level,
+      prerequisites: subject.prerequisites,
+      status: subject.status,
+      createdBy: {
+        id: subject.createdBy?.id ?? 'unknown',
+        firstName: subject.createdBy?.firstName ?? 'unknown',
+        lastName: subject.createdBy?.lastName ?? 'unknown',
+      },
+      createdAt: subject.createdAt,
+      updatedAt: subject.updatedAt,
+    };
+  }
 
   async createSubject(
     createSubjectDto: CreateSubjectDto,
@@ -155,7 +177,7 @@ export class SubjectsService {
 
     // Determine status based on role (trust-based)
     let status = SubjectStatus.DRAFT; // default
-    
+
     if (
       userRole === SYSTEM_ROLES.SUPER_ADMIN ||
       userRole === SYSTEM_ROLES.ADMIN_FORMATION
@@ -273,9 +295,7 @@ export class SubjectsService {
       userRole === SYSTEM_ROLES.STUDENT &&
       subject.status !== SubjectStatus.VALIDATED
     ) {
-      throw new ForbiddenException(
-        'Students can only view validated subjects',
-      );
+      throw new ForbiddenException('Students can only view validated subjects');
     }
 
     return subject;
@@ -288,7 +308,7 @@ export class SubjectsService {
     const limit = Math.min(filter.limit || 20, 100);
     const offset = filter.offset || 0;
 
-    let query = this.subjectRepository
+    const query = this.subjectRepository
       .createQueryBuilder('subject')
       .leftJoinAndSelect('subject.createdBy', 'createdBy')
       .where('subject.createdBy.id = :userId', { userId: user.id });
@@ -370,9 +390,7 @@ export class SubjectsService {
       userRole === SYSTEM_ROLES.ADMIN_FORMATION;
 
     if (!isOwner && !isAdmin) {
-      throw new ForbiddenException(
-        'You can only update your own subjects',
-      );
+      throw new ForbiddenException('You can only update your own subjects');
     }
 
     Object.assign(subject, updateSubjectDto);
@@ -396,9 +414,7 @@ export class SubjectsService {
       userRole === SYSTEM_ROLES.ADMIN_FORMATION;
 
     if (!isOwner && !isAdmin) {
-      throw new ForbiddenException(
-        'You can only delete your own subjects',
-      );
+      throw new ForbiddenException('You can only delete your own subjects');
     }
 
     await this.subjectRepository.remove(subject);
@@ -454,28 +470,38 @@ export class SubjectsService {
             const INTERNAL_SECRET = process.env.INTERNAL_SECRET;
             if (!AI_SERVICE_URL || !INTERNAL_SECRET) return;
 
-            const fetchFn = (globalThis as any).fetch ?? (await import('node-fetch')).default;
+            const fetchFn =
+              (globalThis as any).fetch ?? (await import('node-fetch')).default;
 
-            await fetchFn(`${AI_SERVICE_URL.replace(/\/$/, '')}/embed/subject`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Internal-Secret': INTERNAL_SECRET,
+            await fetchFn(
+              `${AI_SERVICE_URL.replace(/\/$/, '')}/embed/subject`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Internal-Secret': INTERNAL_SECRET,
+                },
+                body: JSON.stringify({
+                  subjectId: saved.id,
+                  titre: saved.title,
+                  description: saved.description,
+                  techno: saved.technologies ?? [],
+                  prerequis: saved.prerequisites ?? '',
+                  niveau: saved.level ?? '',
+                }),
               },
-              body: JSON.stringify({
-                subjectId: saved.id,
-                titre: saved.title,
-                description: saved.description,
-                techno: saved.technologies ?? [],
-                prerequis: saved.prerequisites ?? '',
-                niveau: saved.level ?? '',
-              }),
-            });
+            );
           } catch (err) {
-            this.logger.warn(`Subject embedding failed: ${(err as Error).message}`);
+            this.logger.warn(
+              `Subject embedding failed: ${(err as Error).message}`,
+            );
           }
         })
-        .catch((err) => this.logger.warn(`Subject embedding scheduling failed: ${(err as Error).message}`));
+        .catch((err) =>
+          this.logger.warn(
+            `Subject embedding scheduling failed: ${(err as Error).message}`,
+          ),
+        );
     }
 
     return saved;
@@ -485,10 +511,11 @@ export class SubjectsService {
    * Return all validated subjects (used by startup indexing)
    */
   async getValidatedSubjects(): Promise<Subject[]> {
-return await this.subjectRepository.find({
-  where: { status: SubjectStatus.VALIDATED },
-  relations: ['createdBy'],
-});  }
+    return await this.subjectRepository.find({
+      where: { status: SubjectStatus.VALIDATED },
+      relations: ['createdBy'],
+    });
+  }
 
   private getUserRole(user: User): string | undefined {
     return user?.roles && user.roles.length > 0

@@ -1,4 +1,11 @@
-import { IsUUID, IsNotEmpty, IsOptional, IsDateString, IsString, IsEmail } from 'class-validator';
+import {
+  IsUUID,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+  IsString,
+  IsEmail,
+} from 'class-validator';
 
 export class CreateStageDto {
   // OLD METHOD: Provide candidatureId directly (admin knows the ID)
@@ -49,4 +56,3 @@ export class CreateStageDto {
   @IsOptional()
   adminNotes?: string;
 }
-

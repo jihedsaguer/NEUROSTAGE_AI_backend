@@ -49,18 +49,16 @@ function resolveExtension(mimetype: string, originalname: string): string {
 /**
  * Shared Multer config for MulterModule.registerAsync (ConfigService context).
  */
-export function createMulterOptions(configService: ConfigService): MulterOptions {
+export function createMulterOptions(
+  configService: ConfigService,
+): MulterOptions {
   const uploadDir =
     configService.get<string>('UPLOAD_DIR') ?? DEFAULT_UPLOAD_DIR;
 
   return {
     limits: { fileSize: GLOBAL_MAX_FILE_SIZE },
     storage: diskStorage({
-      destination: (
-        req: Request & { user?: { id: string } },
-        _file,
-        cb,
-      ) => {
+      destination: (req: Request & { user?: { id: string } }, _file, cb) => {
         const userId = req.user?.id;
         if (!userId) {
           return cb(new Error('Unauthorized: user not found on request'), '');
@@ -168,5 +166,4 @@ export class StorageService {
     const relative = fileUrl.slice(base.length).replace(/^\//, '');
     return join(this.uploadDir, relative);
   }
-
 }

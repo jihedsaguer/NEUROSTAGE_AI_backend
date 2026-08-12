@@ -107,7 +107,11 @@ describe('SubjectsService', () => {
         }),
       });
 
-      const result = await service.generateSubjectDraft(['student-1'], 'enc-1', 'context');
+      const result = await service.generateSubjectDraft(
+        ['student-1'],
+        'enc-1',
+        'context',
+      );
 
       expect(result).toEqual([
         {
@@ -319,7 +323,10 @@ describe('SubjectsService', () => {
 
       mockRepository.createQueryBuilder.mockReturnValue(mockQueryBuilder);
 
-      await service.getAllSubjects(mockStudentUser, new QuerySubjectsFilterDto());
+      await service.getAllSubjects(
+        mockStudentUser,
+        new QuerySubjectsFilterDto(),
+      );
 
       // Should have called andWhere for VALIDATED status
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
@@ -347,7 +354,10 @@ describe('SubjectsService', () => {
 
       await service.getAllSubjects(mockUser, filter);
 
-      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith('subject.title', 'ASC');
+      expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+        'subject.title',
+        'ASC',
+      );
     });
 
     it('should apply pagination correctly', async () => {
@@ -377,7 +387,7 @@ describe('SubjectsService', () => {
   });
 
   describe('getMySubjects', () => {
-    it('should return user\'s subjects with pagination', async () => {
+    it("should return user's subjects with pagination", async () => {
       const filter = new QuerySubjectsFilterDto();
 
       const mockQueryBuilder = {

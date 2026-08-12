@@ -9,7 +9,12 @@ import {
   Request,
 } from '@nestjs/common';
 import { StagesService } from './stages.service';
-import { CreateStageDto, UpdateStageDto, AssignAcadDto, AssignProDto } from './dto';
+import {
+  CreateStageDto,
+  UpdateStageDto,
+  AssignAcadDto,
+  AssignProDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -21,7 +26,7 @@ import { Audit } from '../../common/audit/audit.decorator';
 export class StagesController {
   constructor(private readonly stagesService: StagesService) {}
 
-  // ─── Admin endpoints 
+  // ─── Admin endpoints
   @Post()
   @Roles(SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ADMIN_FORMATION)
   @Audit('CREATE_STAGE', 'Stage')

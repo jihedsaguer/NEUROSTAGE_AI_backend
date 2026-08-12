@@ -24,12 +24,16 @@ import { SYSTEM_ROLES } from '../roles/constants/roles.constants';
 @Controller('jalons')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class JalonsController {
-  constructor(private readonly jalonsService: JalonsService) { }
+  constructor(private readonly jalonsService: JalonsService) {}
 
   // ─── Admin endpoints ──────────────────────────────────────────────────────────
 
   @Post()
-  @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN, SYSTEM_ROLES.ENCADRANT_PRO)
+  @Roles(
+    SYSTEM_ROLES.ADMIN_FORMATION,
+    SYSTEM_ROLES.SUPER_ADMIN,
+    SYSTEM_ROLES.ENCADRANT_PRO,
+  )
   createJalon(@Body() dto: CreateJalonDto, @Request() req) {
     return this.jalonsService.createJalon(dto, req.user);
   }
@@ -44,19 +48,31 @@ export class JalonsController {
 
   @Patch(':id/validate')
   @Roles(SYSTEM_ROLES.ENCADRANT_PRO)
-  validateJalon(@Param('id') id: string, @Body() dto: ValidateJalonDto, @Request() req) {
+  validateJalon(
+    @Param('id') id: string,
+    @Body() dto: ValidateJalonDto,
+    @Request() req,
+  ) {
     return this.jalonsService.validateJalon(id, dto, req.user);
   }
 
   @Patch(':id/acad-comment')
   @Roles(SYSTEM_ROLES.ENCADRANT_ACADEMIQUE)
-  addAcadComment(@Param('id') id: string, @Body() dto: AcadCommentDto, @Request() req) {
+  addAcadComment(
+    @Param('id') id: string,
+    @Body() dto: AcadCommentDto,
+    @Request() req,
+  ) {
     return this.jalonsService.addAcadComment(id, dto, req.user);
   }
 
   @Post(':id/livrable')
   @Roles(SYSTEM_ROLES.STUDENT)
-  submitLivrable(@Param('id') id: string, @Body() dto: SubmitLivrableDto, @Request() req) {
+  submitLivrable(
+    @Param('id') id: string,
+    @Body() dto: SubmitLivrableDto,
+    @Request() req,
+  ) {
     return this.jalonsService.submitLivrable(id, dto, req.user);
   }
 
@@ -74,7 +90,11 @@ export class JalonsController {
 
   @Patch(':id')
   @Roles(SYSTEM_ROLES.ADMIN_FORMATION, SYSTEM_ROLES.SUPER_ADMIN)
-  updateJalon(@Param('id') id: string, @Body() dto: UpdateJalonDto, @Request() req) {
+  updateJalon(
+    @Param('id') id: string,
+    @Body() dto: UpdateJalonDto,
+    @Request() req,
+  ) {
     return this.jalonsService.updateJalon(id, dto, req.user);
   }
 
