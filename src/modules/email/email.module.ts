@@ -1,8 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { EmailService } from './email.service';
 import { MailerModule } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { join } from 'path';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/adapters/handlebars.adapter'; import { join } from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { AuthModule } from '../auth/auth.module';
@@ -57,4 +56,4 @@ import { EmailController } from './email.controller';
   controllers: [EmailController],
   exports: [EmailService],
 })
-export class EmailModule {}
+export class EmailModule { }
