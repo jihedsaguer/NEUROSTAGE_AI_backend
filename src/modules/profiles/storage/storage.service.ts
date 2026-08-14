@@ -3,7 +3,7 @@
  *   UPLOAD_DIR=./uploads
  *   UPLOAD_BASE_URL=http://localhost:3000/uploads
  */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import { diskStorage } from 'multer';
@@ -17,13 +17,23 @@ const DEFAULT_UPLOAD_DIR = './uploads';
 const DEFAULT_UPLOAD_BASE_URL = 'http://localhost:3000/uploads';
 const GLOBAL_MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-const MIME_EXTENSION_MAP: Record<string, string> = {
-  'application/pdf': '.pdf',
-  'application/msword': '.doc',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.jpg',
+  '.jpeg',
+  '.png',
+]);
+
+const ALLOWED_MIME_TYPES: Record<string, string[]> = {
+  'application/pdf': ['.pdf'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [
     '.docx',
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
+  ],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
 };
 
 export interface StoredFileMetadata {
@@ -35,15 +45,13 @@ export interface StoredFileMetadata {
 }
 
 function resolveExtension(mimetype: string, originalname: string): string {
-  const fromMime = MIME_EXTENSION_MAP[mimetype];
-  if (fromMime) {
-    return fromMime;
-  }
   const ext = extname(originalname).toLowerCase();
-  if (ext) {
+  if (ext === '.jpeg') return '.jpg';
+  const allowed = ALLOWED_MIME_TYPES[mimetype];
+  if (allowed && allowed.includes(ext)) {
     return ext;
   }
-  return '';
+  return allowed ? allowed[0] : '';
 }
 
 /**
@@ -57,6 +65,38 @@ export function createMulterOptions(
 
   return {
     limits: { fileSize: GLOBAL_MAX_FILE_SIZE },
+    fileFilter: (_req, file, cb) => {
+      const ext = extname(file.originalname).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
+        return cb(
+          new BadRequestException(
+            `Invalid file extension '${ext}'. Allowed formats: .pdf, .doc, .docx, .jpg, .jpeg, .png`,
+          ),
+          false,
+        );
+      }
+
+      const validExtensionsForMime = ALLOWED_MIME_TYPES[file.mimetype];
+      if (!validExtensionsForMime) {
+        return cb(
+          new BadRequestException(
+            `Unsupported MIME type '${file.mimetype}'.`,
+          ),
+          false,
+        );
+      }
+
+      if (!validExtensionsForMime.includes(ext)) {
+        return cb(
+          new BadRequestException(
+            `File extension '${ext}' does not match MIME type '${file.mimetype}'.`,
+          ),
+          false,
+        );
+      }
+
+      cb(null, true);
+    },
     storage: diskStorage({
       destination: (req: Request & { user?: { id: string } }, _file, cb) => {
         const userId = req.user?.id;
