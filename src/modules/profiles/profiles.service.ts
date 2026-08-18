@@ -475,7 +475,82 @@ export class ProfilesService {
     const profile = await this.ensureProfileForUser(userId);
     profile.isAiProcessed = true;
     await this.profileRepository.save(profile);
+
+    // Trigger n8n webhook asynchronously
+    void this.triggerCvProcessedWebhook(userId, profile);
   }
+
+  /**
+   * Helper to trigger n8n CV processed webhook in a fire-and-forget manner.
+   */
+  private async triggerCvProcessedWebhook(
+    userId: string,
+    profile: StudentProfile,
+  ): Promise<void> {
+    try {
+      const n8nUrl = process.env.N8N_CV_PROCESSED_WEBHOOK_URL;
+      if (!n8nUrl) {
+        this.logger.warn('N8N_CV_PROCESSED_WEBHOOK_URL is not configured.');
+        return;
+      }
+
+      // Fetch CV doc + student email in parallel.
+      // NOTE: student_profiles.user_id (the @JoinColumn snake_case column) is
+      // not populated — only the camelCase `userId` column carries the FK.
+      // We therefore query the users table directly via entity manager.
+      const [cv, userRow] = await Promise.all([
+        this.documentRepository.findOne({
+          where: { profileId: profile.id, type: 'CV' },
+        }),
+        this.profileRepository.manager
+          .createQueryBuilder()
+          .select('u.email', 'email')
+          .from('users', 'u')
+          .where('u.id = :userId', { userId })
+          .getRawOne<{ email: string }>(),
+      ]);
+
+      const studentEmail = userRow?.email ?? null;
+
+      const payload = {
+        event: 'cv.processed',
+        timestamp: new Date().toISOString(),
+        studentId: userId,
+        documentId: cv?.id ?? null,
+        fileName: cv?.fileName ?? null,
+        email: studentEmail,
+        status: 'completed',
+        ai: {
+          extraction: 'completed',
+          embedding: 'completed',
+        },
+      };
+
+      const fetchFn =
+        (globalThis as any).fetch ?? (await import('node-fetch')).default;
+
+      const response = await fetchFn(n8nUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        this.logger.warn(
+          `n8n webhook returned status code ${response.status} for user ${userId}`,
+        );
+      } else {
+        this.logger.log(`n8n webhook triggered successfully for user ${userId}`);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to trigger n8n webhook for user ${userId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
 
   /**
    * Request subject suggestions from AI service for a student. Returns

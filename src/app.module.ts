@@ -27,14 +27,24 @@ import { JalonsModule } from './modules/jalons/jalons.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { RagModule } from './modules/rag/rag.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { AuditInterceptor } from './common/interceptors/audit.interceptor';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SubjectsService } from './modules/subjects/subjects.service';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: configService.get<number>('THROTTLE_TTL') ?? 60000,
+          limit: configService.get<number>('THROTTLE_LIMIT') ?? 100,
+        },
+      ],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -65,12 +75,16 @@ import { SubjectsService } from './modules/subjects/subjects.service';
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule implements NestModule, OnModuleInit {
   private readonly logger = new Logger(AppModule.name);
 
-  constructor(private readonly subjectsService: SubjectsService) {}
+  constructor(private readonly subjectsService: SubjectsService) { }
 
   async onModuleInit() {
     void this.warmupValidatedSubjects();

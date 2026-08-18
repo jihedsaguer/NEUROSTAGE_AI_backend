@@ -17,10 +17,16 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './types/jwt-payload.type';
 import { EmailService } from '../email/email.service';
 import { Inject, forwardRef } from '@nestjs/common';
+import { createHash, randomBytes } from 'crypto';
 
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
+  /** SHA-256 hash of a refresh token for safe DB storage. */
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
 
   constructor(
     @InjectRepository(User)
@@ -196,16 +202,18 @@ export class AuthService {
   }
 
   private async setRefreshToken(user: User): Promise<string> {
-    const token = require('crypto').randomBytes(64).toString('hex');
-    user.refreshToken = token;
+    const token = randomBytes(64).toString('hex');
+    user.refreshToken = this.hashRefreshToken(token);
     user.refreshTokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     await this.userRepository.save(user);
+    // Return the RAW token to the caller — only the hash is persisted.
     return token;
   }
 
   async refreshToken(oldRefreshToken: string): Promise<AuthResponseDto> {
+    const hashedIncoming = this.hashRefreshToken(oldRefreshToken);
     const user = await this.userRepository.findOne({
-      where: { refreshToken: oldRefreshToken },
+      where: { refreshToken: hashedIncoming },
       relations: ['roles', 'roles.permissions'],
     });
     if (!user) {
