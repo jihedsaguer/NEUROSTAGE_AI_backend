@@ -50,6 +50,7 @@ services:
       MAIL_USER: ${MAIL_USER:-}
       MAIL_PASS: ${MAIL_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-no-reply@neurostage.local}
+      N8N_CV_PROCESSED_WEBHOOK_URL: ${N8N_CV_PROCESSED_WEBHOOK_URL}
     volumes:
       - uploads:/var/neurostage/uploads
     networks:

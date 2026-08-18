@@ -27,10 +27,10 @@ import { JalonsModule } from './modules/jalons/jalons.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { RagModule } from './modules/rag/rag.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { SubjectsService } from './modules/subjects/subjects.service';
+import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 @Module({
   imports: [
@@ -84,7 +84,7 @@ import { SubjectsService } from './modules/subjects/subjects.service';
 export class AppModule implements NestModule, OnModuleInit {
   private readonly logger = new Logger(AppModule.name);
 
-  constructor(private readonly subjectsService: SubjectsService) {}
+  constructor(private readonly subjectsService: SubjectsService) { }
 
   async onModuleInit() {
     void this.warmupValidatedSubjects();
