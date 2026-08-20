@@ -57,6 +57,16 @@ jobs:
     needs: build-and-push
     runs-on: self-hosted
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Sync infrastructure files to VM
+        run: |
+          # Copy the infrastructure files the VM reads at runtime into ~/neurostage
+          # so docker compose always uses the latest versions from this commit.
+          cp "$GITHUB_WORKSPACE/docker-compose.yml" ~/neurostage/docker-compose.yml
+          cp "$GITHUB_WORKSPACE/nginx.conf"         ~/neurostage/nginx.conf
+
       - name: Deploy on VM
         run: |
           cd ~/neurostage
