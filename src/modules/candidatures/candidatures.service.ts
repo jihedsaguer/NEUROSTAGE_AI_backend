@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,6 +16,8 @@ import { StagesService } from '../stages/stages.service';
 
 @Injectable()
 export class CandidaturesService {
+  private readonly logger = new Logger(CandidaturesService.name);
+
   constructor(
     @InjectRepository(Candidature)
     private readonly candidatureRepository: Repository<Candidature>,
@@ -126,6 +129,12 @@ export class CandidaturesService {
     candidature.status = dto.status;
     const saved = await this.candidatureRepository.save(candidature);
 
+    // Fire n8n webhook immediately for REJECTED — status is persisted, no further
+    // operations can roll it back, so it is safe to notify here.
+    if (dto.status === CandidatureStatus.REJECTED) {
+      void this.triggerInternshipStatusWebhook(saved);
+    }
+
     // Auto-create stage when candidature transitions to ACCEPTED.
     // If stage creation fails, roll back the status change so the system
     // never ends up with an ACCEPTED candidature that has no stage.
@@ -139,6 +148,9 @@ export class CandidaturesService {
           encadrantProId: dto.encadrantProId,
           encadrantProEmail: dto.encadrantProEmail,
         });
+
+        // Stage creation succeeded and status is confirmed persisted — safe to notify.
+        void this.triggerInternshipStatusWebhook(saved);
       } catch (err) {
         // Roll back: revert candidature status to its previous value
         candidature.status = previousStatus;
@@ -251,5 +263,73 @@ export class CandidaturesService {
       where: { status: CandidatureStatus.ACCEPTED },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Fire-and-forget n8n webhook for internship.accepted / internship.rejected.
+   * Mirrors the pattern used by triggerCvProcessedWebhook in ProfilesService.
+   * Failures are logged but never propagate to the caller.
+   */
+  private async triggerInternshipStatusWebhook(
+    candidature: Candidature,
+  ): Promise<void> {
+    try {
+      const isAccepted = candidature.status === CandidatureStatus.ACCEPTED;
+      const urlEnvKey = isAccepted
+        ? 'N8N_INTERNSHIP_ACCEPTED_WEBHOOK_URL'
+        : 'N8N_INTERNSHIP_REJECTED_WEBHOOK_URL';
+      const n8nUrl = process.env[urlEnvKey];
+
+      if (!n8nUrl) {
+        this.logger.warn(
+          `${urlEnvKey} is not configured — skipping internship status webhook.`,
+        );
+        return;
+      }
+
+      const event = isAccepted ? 'internship.accepted' : 'internship.rejected';
+
+      const payload = {
+        event,
+        timestamp: new Date().toISOString(),
+        candidatureId: candidature.id,
+        studentId: candidature.student?.id,
+        email: candidature.student?.email,
+        student: {
+          firstName: candidature.student?.firstName,
+          lastName: candidature.student?.lastName,
+        },
+        subject: {
+          id: candidature.subject?.id,
+          title: candidature.subject?.title,
+        },
+        status: candidature.status,
+      };
+
+      const fetchFn =
+        (globalThis as any).fetch ?? (await import('node-fetch')).default;
+
+      const response = await fetchFn(n8nUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        this.logger.warn(
+          `n8n internship webhook returned status ${response.status} for candidature ${candidature.id}`,
+        );
+      } else {
+        this.logger.log(
+          `n8n internship webhook (${event}) triggered successfully for candidature ${candidature.id}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to trigger n8n internship webhook for candidature ${candidature.id}: ${(err as Error).message}`,
+      );
+    }
   }
 }
