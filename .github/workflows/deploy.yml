@@ -61,16 +61,23 @@ jobs:
         run: |
           cd ~/neurostage
           echo "${{ github.sha }}" > .last-deploy-app-sha
+          # Pull the new backend image once — shared by both app and app_replica
           docker compose pull app
-          docker compose up -d app
+          # Start/recreate both backend instances and reload nginx config
+          docker compose up -d app app_replica nginx
+
       - name: Wait and verify health
         run: |
-         cd ~/neurostage
+          cd ~/neurostage
           echo "Waiting for backend to become healthy..."
           for i in {1..15}; do
             CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost/api/auth/login -X POST -H "Content-Type: application/json" -d '{"email":"healthcheck@test.com","password":"wrong"}')
             if [ "$CODE" = "400" ] || [ "$CODE" = "401" ] || [ "$CODE" = "500" ]; then
               echo "Backend is responding (HTTP $CODE)."
+              # Confirm replica is also running
+              docker compose ps app_replica --format json | grep -q "running" \
+                && echo "app_replica is running." \
+                || echo "WARNING: app_replica is not in running state."
               exit 0
             fi
             echo "Attempt $i/15 - not ready yet (got HTTP $CODE), waiting 3s..."
