@@ -15,15 +15,13 @@ services:
     networks:
       - neurostage_network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-neuro_admin} -d ${DB_NAME:-neurostage_db}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-neuro_admin} -d ${DB_NAME:-neurostage_db}"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: jihedxx/neurostage-backend:latest
     container_name: neurostage_app
     restart: unless-stopped
     depends_on:
@@ -66,17 +64,16 @@ services:
       retries: 5
       start_period: 15s
 
-  # ── Second NestJS instance for REST API load balancing ──────────────────────
-  # Identical build, environment, volumes, and network as `app`.
+  # ── Second NestJS instance for REST API load balancing ─────────────────────
+  # Uses the same production image as app.
   # Socket.IO is NOT load-balanced — Nginx routes /socket.io/ exclusively to
-  # neurostage_app. See nginx.conf for rationale.
-  # Host port intentionally NOT published — only reachable inside the Docker
-  # network by Nginx upstream. The primary app retains 3000:3000 for direct
-  # access and AI service compatibility (NESTJS_INTERNAL_URL).
+  # neurostage_app. ChatGateway uses Socket.IO in-memory adapter; horizontal
+  # WebSocket scaling requires a Redis adapter (deferred to a future phase).
+  # Host port intentionally NOT published — reachable inside neurostage_network
+  # only, by the Nginx upstream. The primary app retains 3000:3000 for direct
+  # access and NESTJS_INTERNAL_URL compatibility with the AI service.
   app_replica:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: jihedxx/neurostage-backend:latest
     container_name: neurostage_app_replica
     restart: unless-stopped
     depends_on:
@@ -110,7 +107,7 @@ services:
       - uploads:/var/neurostage/uploads
     networks:
       - neurostage_network
-    # No host port published — internal only
+    # No host port — internal only
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
       interval: 10s
@@ -119,9 +116,7 @@ services:
       start_period: 15s
 
   ai:
-    build:
-      context: ../Ai_agent_neurostage
-      dockerfile: Dockerfile
+    image: jihedxx/neurostage-ai:latest
     container_name: neurostage_ai
     restart: unless-stopped
     depends_on:
@@ -130,7 +125,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER:-neuro_admin}:${DB_PASSWORD:-neuro_password}@db:5432/${DB_NAME:-neurostage_db}
       INTERNAL_SECRET: ${INTERNAL_SECRET}
-      # Points to primary app only — AI callbacks must reach a stable single endpoint
+      # Always points to the primary app — AI callbacks need a single stable target
       NESTJS_INTERNAL_URL: http://neurostage_app:3000
       UPLOAD_DIR: /var/neurostage/uploads
       UPLOAD_BASE_URL: ${UPLOAD_BASE_URL:-http://localhost}
@@ -169,11 +164,7 @@ services:
       - neurostage_network
 
   frontend:
-    build:
-      context: ../../neurostage-frontend
-      dockerfile: Dockerfile
-      args:
-        VITE_API_URL: http://localhost/api
+    image: jihedxx/neurostage-frontend:latest
     container_name: neurostage_frontend
     restart: unless-stopped
     depends_on:
@@ -185,7 +176,7 @@ volumes:
   db_data:
   uploads:
   ssl:
-  # Dedicated volume for Nginx structured access logs.
+  # Dedicated volume for structured Nginx access logs.
   # Persists across Nginx container restarts and recreations.
   # Will be consumed by the n8n monitoring workflow in the next phase.
   nginx_logs:
